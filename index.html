@@ -19,7 +19,8 @@
 
 // === CONSTANTS ===
 const WALL_THICKNESS = 30;
-const PLATFORM_HEIGHT = 10;
+const PLATFORM_HEIGHT_BASE = 10;  // starting thickness
+const PLATFORM_HEIGHT_GROW = 8;   // additional height per theme level
 const OBSTACLE_MIN_GAP = 130;
 const OBSTACLE_MAX_GAP = 190;
 const SPAWN_AHEAD = 800;
@@ -42,11 +43,10 @@ const ACCEL_RATE = 0.5;          // acceleration per frame (100-scale)
 const DECEL_RATE = 0.05;         // lerp factor for deceleration
 
 // === OBSTACLE CONSTANTS ===
-const DOUBLE_OBSTACLE_CHANCE = 0.35;
-const SINGLE_MIN_RATIO = 0.4;    // 80/200
-const SINGLE_MAX_RATIO = 0.6;    // 120/200
-const DOUBLE_MAX_COMBINED = 0.85; // 170/200
-const DOUBLE_MIN_EACH = 0.2;     // 40/200 minimum per side
+const DOUBLE_OBSTACLE_CHANCE = 0.2; // mostly single-side
+const SINGLE_MIN_RATIO = 0.4;      // 80/200
+const SINGLE_MAX_RATIO = 0.6;      // 120/200
+const DOUBLE_GAP_RATIO = 0.15;     // fixed 30/200 gap for double-side
 
 // === COLOR THEMES ===
 const THEMES = [
@@ -67,6 +67,11 @@ let titleAnimTime = 0;
 
 function getCurrentTheme() {
   return THEMES[Math.floor(score / POINTS_PER_THEME) % THEMES.length];
+}
+
+function getCurrentPlatformHeight() {
+  var level = Math.floor(score / POINTS_PER_THEME);
+  return PLATFORM_HEIGHT_BASE + PLATFORM_HEIGHT_GROW * level;
 }
 
 // === CANVAS SETUP ===
@@ -174,6 +179,7 @@ function resetObstacles() {
 
 function generateObstacles() {
   var generateTo = camera.y + canvasHeight + SPAWN_AHEAD;
+  var platH = getCurrentPlatformHeight();
 
   while (lastObstacleY < generateTo) {
     var gap = OBSTACLE_MIN_GAP + Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP);
@@ -183,19 +189,22 @@ function generateObstacles() {
     var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
 
     if (isDouble) {
-      // Double-side: both walls, combined max DOUBLE_MAX_COMBINED
-      var leftRatio = DOUBLE_MIN_EACH + Math.random() * (SINGLE_MAX_RATIO - DOUBLE_MIN_EACH);
-      var maxRight = DOUBLE_MAX_COMBINED - leftRatio;
-      var rightRatio = DOUBLE_MIN_EACH + Math.random() * (Math.min(maxRight, SINGLE_MAX_RATIO) - DOUBLE_MIN_EACH);
+      // Double-side: fixed gap of 30 units (DOUBLE_GAP_RATIO of towerWidth)
+      var gapPx = towerWidth * DOUBLE_GAP_RATIO;
+      var usable = towerWidth - gapPx;
+      // Split usable space randomly between left and right
+      var leftFrac = 0.3 + Math.random() * 0.4; // 30-70% of usable to left
+      var leftW = usable * leftFrac;
+      var rightW = usable - leftW;
 
       obstacles.push({
         x: 0, y: lastObstacleY,
-        width: towerWidth * leftRatio, height: PLATFORM_HEIGHT,
+        width: leftW, height: platH,
         side: "left", passed: false, groupId: obstacleGroupId
       });
       obstacles.push({
-        x: towerWidth - towerWidth * rightRatio, y: lastObstacleY,
-        width: towerWidth * rightRatio, height: PLATFORM_HEIGHT,
+        x: towerWidth - rightW, y: lastObstacleY,
+        width: rightW, height: platH,
         side: "right", passed: false, groupId: obstacleGroupId
       });
     } else {
@@ -207,7 +216,7 @@ function generateObstacles() {
       obstacles.push({
         x: side === "left" ? 0 : towerWidth - platWidth,
         y: lastObstacleY,
-        width: platWidth, height: PLATFORM_HEIGHT,
+        width: platWidth, height: platH,
         side: side, passed: false, groupId: obstacleGroupId
       });
     }
