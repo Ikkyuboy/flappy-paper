@@ -45,8 +45,9 @@ const DECEL_RATE = 0.05;         // lerp factor for deceleration
 // === OBSTACLE CONSTANTS ===
 const DOUBLE_OBSTACLE_CHANCE = 0.2; // mostly single-side
 const SINGLE_MIN_RATIO = 0.4;      // 80/200
-const SINGLE_MAX_RATIO = 0.6;      // 120/200
+const SINGLE_MAX_RATIO = 0.55;     // 110/200
 const DOUBLE_GAP_RATIO = 0.15;     // fixed 30/200 gap for double-side
+const SPEED_LEVEL_BONUS = 10;      // speed bonus per theme level
 
 // === COLOR THEMES ===
 const THEMES = [
@@ -170,11 +171,13 @@ let camera = { y: 0 };
 let obstacles = [];
 let lastObstacleY = 0;
 let obstacleGroupId = 0;
+let lastSingleSide = "left";
 
 function resetObstacles() {
   obstacles = [];
   lastObstacleY = 250;
   obstacleGroupId = 0;
+  lastSingleSide = "left";
 }
 
 function generateObstacles() {
@@ -208,8 +211,9 @@ function generateObstacles() {
         side: "right", passed: false, groupId: obstacleGroupId
       });
     } else {
-      // Single-side: one wall, 80-120 units (0.4-0.6 of towerWidth)
-      var side = Math.random() < 0.5 ? "left" : "right";
+      // Single-side: one wall, alternating left/right
+      lastSingleSide = (lastSingleSide === "left") ? "right" : "left";
+      var side = lastSingleSide;
       var platRatio = SINGLE_MIN_RATIO + Math.random() * (SINGLE_MAX_RATIO - SINGLE_MIN_RATIO);
       var platWidth = towerWidth * platRatio;
 
@@ -345,14 +349,15 @@ function updatePlaying(dt) {
     if (tap === "left") player.angleDeg = Math.max(-MAX_ANGLE, player.angleDeg - ANGLE_STEP);
   }
 
-  // 2. Compute speed based on angle
+  // 2. Compute speed based on angle (with theme-level bonus)
   var absAngle = Math.abs(player.angleDeg);
-  var targetSpeed = BASE_SPEED_100 - absAngle / 2;
+  var speedBonus = SPEED_LEVEL_BONUS * Math.floor(score / POINTS_PER_THEME);
+  var targetSpeed = (BASE_SPEED_100 + speedBonus) - absAngle / 2;
 
   if (absAngle <= ACCEL_THRESHOLD) {
     // Near-vertical: accelerate toward max speed
     var accelFactor = 1 - absAngle / ACCEL_THRESHOLD;
-    player.speed = Math.min(MAX_SPEED_100, player.speed + ACCEL_RATE * accelFactor * dt);
+    player.speed = Math.min(MAX_SPEED_100 + speedBonus, player.speed + ACCEL_RATE * accelFactor * dt);
   } else {
     // At higher angles: decelerate toward target speed
     player.speed = lerp(player.speed, targetSpeed, DECEL_RATE * dt);
