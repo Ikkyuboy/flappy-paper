@@ -18,11 +18,6 @@
 // ============================================================
 
 // === CONSTANTS ===
-const GRAVITY = 0.12;
-const HORIZONTAL_SPEED = 3.5;
-const LIFT = -0.08;
-const MAX_FALL_SPEED = 4.5;
-const HORIZONTAL_DRAG = 0.12;
 const WALL_THICKNESS = 30;
 const PLATFORM_HEIGHT = 10;
 const OBSTACLE_MIN_GAP = 130;
@@ -36,6 +31,22 @@ const WINDOW_INTERVAL = 250;
 const WINDOW_WIDTH = 60;
 const WINDOW_HEIGHT = 50;
 const POINTS_PER_THEME = 20;
+
+// === MOVEMENT CONSTANTS ===
+const ANGLE_STEP = 20;           // degrees per tap
+const MAX_ANGLE = 80;            // max angle from vertical
+const BASE_SPEED_100 = 95;       // speed at 0° in 100-scale
+const MAX_SPEED_100 = 170;       // max accelerated speed
+const ACCEL_THRESHOLD = 20;      // angle below which acceleration kicks in (degrees)
+const ACCEL_RATE = 0.5;          // acceleration per frame (100-scale)
+const DECEL_RATE = 0.05;         // lerp factor for deceleration
+
+// === OBSTACLE CONSTANTS ===
+const DOUBLE_OBSTACLE_CHANCE = 0.35;
+const SINGLE_MIN_RATIO = 0.4;    // 80/200
+const SINGLE_MAX_RATIO = 0.6;    // 120/200
+const DOUBLE_MAX_COMBINED = 0.85; // 170/200
+const DOUBLE_MIN_EACH = 0.2;     // 40/200 minimum per side
 
 // === COLOR THEMES ===
 const THEMES = [
@@ -62,7 +73,7 @@ function getCurrentTheme() {
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let canvasWidth, canvasHeight, towerWidth, towerLeft, dpr;
+let canvasWidth, canvasHeight, towerWidth, towerLeft, dpr, speedScale;
 
 function resizeCanvas() {
   dpr = window.devicePixelRatio || 1;
@@ -80,6 +91,7 @@ function resizeCanvas() {
   canvasHeight = h;
   towerWidth = canvasWidth - WALL_THICKNESS * 2;
   towerLeft = WALL_THICKNESS;
+  speedScale = towerWidth / 200 / 60;
 
   createBrickPattern();
 }
@@ -129,8 +141,8 @@ resizeCanvas();
 // === PLAYER ===
 let player = {
   x: 0, y: 0,
-  vx: 0, vy: 0,
-  angle: 0,
+  angleDeg: 0,
+  speed: BASE_SPEED_100,
   dead: false,
   deathScale: 1,
   deathAngle: 0
@@ -139,9 +151,8 @@ let player = {
 function resetPlayer() {
   player.x = towerWidth / 2;
   player.y = 0;
-  player.vx = 0;
-  player.vy = 0;
-  player.angle = 0;
+  player.angleDeg = 0;
+  player.speed = BASE_SPEED_100;
   player.dead = false;
   player.deathScale = 1;
   player.deathAngle = 0;
@@ -153,36 +164,53 @@ let camera = { y: 0 };
 // === OBSTACLES ===
 let obstacles = [];
 let lastObstacleY = 0;
-let lastSide = "left";
+let obstacleGroupId = 0;
 
 function resetObstacles() {
   obstacles = [];
   lastObstacleY = 250;
-  lastSide = Math.random() < 0.5 ? "left" : "right";
+  obstacleGroupId = 0;
 }
 
 function generateObstacles() {
-  const generateTo = camera.y + canvasHeight + SPAWN_AHEAD;
+  var generateTo = camera.y + canvasHeight + SPAWN_AHEAD;
 
   while (lastObstacleY < generateTo) {
-    const gap = OBSTACLE_MIN_GAP + Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP);
+    var gap = OBSTACLE_MIN_GAP + Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP);
     lastObstacleY += gap;
+    obstacleGroupId++;
 
-    if (Math.random() < 0.65) {
-      lastSide = lastSide === "left" ? "right" : "left";
+    var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
+
+    if (isDouble) {
+      // Double-side: both walls, combined max DOUBLE_MAX_COMBINED
+      var leftRatio = DOUBLE_MIN_EACH + Math.random() * (SINGLE_MAX_RATIO - DOUBLE_MIN_EACH);
+      var maxRight = DOUBLE_MAX_COMBINED - leftRatio;
+      var rightRatio = DOUBLE_MIN_EACH + Math.random() * (Math.min(maxRight, SINGLE_MAX_RATIO) - DOUBLE_MIN_EACH);
+
+      obstacles.push({
+        x: 0, y: lastObstacleY,
+        width: towerWidth * leftRatio, height: PLATFORM_HEIGHT,
+        side: "left", passed: false, groupId: obstacleGroupId
+      });
+      obstacles.push({
+        x: towerWidth - towerWidth * rightRatio, y: lastObstacleY,
+        width: towerWidth * rightRatio, height: PLATFORM_HEIGHT,
+        side: "right", passed: false, groupId: obstacleGroupId
+      });
+    } else {
+      // Single-side: one wall, 80-120 units (0.4-0.6 of towerWidth)
+      var side = Math.random() < 0.5 ? "left" : "right";
+      var platRatio = SINGLE_MIN_RATIO + Math.random() * (SINGLE_MAX_RATIO - SINGLE_MIN_RATIO);
+      var platWidth = towerWidth * platRatio;
+
+      obstacles.push({
+        x: side === "left" ? 0 : towerWidth - platWidth,
+        y: lastObstacleY,
+        width: platWidth, height: PLATFORM_HEIGHT,
+        side: side, passed: false, groupId: obstacleGroupId
+      });
     }
-
-    const platRatio = 0.65 + Math.random() * 0.15;
-    const platWidth = towerWidth * platRatio;
-
-    obstacles.push({
-      x: lastSide === "left" ? 0 : towerWidth - platWidth,
-      y: lastObstacleY,
-      width: platWidth,
-      height: PLATFORM_HEIGHT,
-      side: lastSide,
-      passed: false
-    });
   }
 }
 
@@ -191,77 +219,41 @@ function cleanupObstacles() {
 }
 
 // === INPUT ===
-const input = { left: false, right: false, anyPress: false };
-
-function handleKeyDown(e) {
-  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") input.left = true;
-  if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") input.right = true;
-  input.anyPress = true;
-  e.preventDefault();
-}
-
-function handleKeyUp(e) {
-  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") input.left = false;
-  if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") input.right = false;
-}
-
-window.addEventListener("keydown", handleKeyDown);
-window.addEventListener("keyup", handleKeyUp);
+const input = { anyPress: false };
+let tapQueue = [];
 
 function getTouchSide(x) {
   return x < canvasWidth / 2 ? "left" : "right";
 }
 
-const activeTouches = new Map();
+function handleKeyDown(e) {
+  if (e.repeat) return;
+  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") tapQueue.push("left");
+  if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") tapQueue.push("right");
+  input.anyPress = true;
+  e.preventDefault();
+}
+
+window.addEventListener("keydown", handleKeyDown);
 
 canvas.addEventListener("touchstart", function(e) {
   e.preventDefault();
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    const touch = e.changedTouches[i];
-    const rect = canvas.getBoundingClientRect();
-    const side = getTouchSide(touch.clientX - rect.left);
-    activeTouches.set(touch.identifier, side);
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var touch = e.changedTouches[i];
+    var rect = canvas.getBoundingClientRect();
+    tapQueue.push(getTouchSide(touch.clientX - rect.left));
   }
-  updateTouchInput();
   input.anyPress = true;
 }, { passive: false });
 
 canvas.addEventListener("touchend", function(e) {
   e.preventDefault();
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    activeTouches.delete(e.changedTouches[i].identifier);
-  }
-  updateTouchInput();
 }, { passive: false });
-
-canvas.addEventListener("touchcancel", function(e) {
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    activeTouches.delete(e.changedTouches[i].identifier);
-  }
-  updateTouchInput();
-});
-
-function updateTouchInput() {
-  var l = false, r = false;
-  activeTouches.forEach(function(side) {
-    if (side === "left") l = true;
-    if (side === "right") r = true;
-  });
-  input.left = l;
-  input.right = r;
-}
 
 canvas.addEventListener("mousedown", function(e) {
   var rect = canvas.getBoundingClientRect();
-  var side = getTouchSide(e.clientX - rect.left);
-  if (side === "left") input.left = true;
-  else input.right = true;
+  tapQueue.push(getTouchSide(e.clientX - rect.left));
   input.anyPress = true;
-});
-
-canvas.addEventListener("mouseup", function() {
-  input.left = false;
-  input.right = false;
 });
 
 // === COLLISION ===
@@ -327,6 +319,7 @@ function lightenColor(hex, amount) {
 function startGame() {
   gameState = "PLAYING";
   score = 0;
+  tapQueue = [];
   resetPlayer();
   resetObstacles();
   particles = [];
@@ -336,35 +329,50 @@ function startGame() {
 }
 
 function updatePlaying(dt) {
-  player.vy += GRAVITY * dt;
-  if (player.vy > MAX_FALL_SPEED) player.vy = MAX_FALL_SPEED;
-
-  if (input.left) {
-    player.vx = lerp(player.vx, -HORIZONTAL_SPEED, HORIZONTAL_DRAG * dt);
-    player.vy += LIFT * dt;
-  } else if (input.right) {
-    player.vx = lerp(player.vx, HORIZONTAL_SPEED, HORIZONTAL_DRAG * dt);
-    player.vy += LIFT * dt;
-  } else {
-    player.vx = lerp(player.vx, 0, 0.08 * dt);
+  // 1. Process taps → rotate by ANGLE_STEP
+  while (tapQueue.length > 0) {
+    var tap = tapQueue.shift();
+    if (tap === "right") player.angleDeg = Math.min(MAX_ANGLE, player.angleDeg + ANGLE_STEP);
+    if (tap === "left") player.angleDeg = Math.max(-MAX_ANGLE, player.angleDeg - ANGLE_STEP);
   }
 
-  if (player.vy < 0.3) player.vy = 0.3;
+  // 2. Compute speed based on angle
+  var absAngle = Math.abs(player.angleDeg);
+  var targetSpeed = BASE_SPEED_100 - absAngle / 2;
 
-  player.x += player.vx * dt;
-  player.y += player.vy * dt;
+  if (absAngle <= ACCEL_THRESHOLD) {
+    // Near-vertical: accelerate toward max speed
+    var accelFactor = 1 - absAngle / ACCEL_THRESHOLD;
+    player.speed = Math.min(MAX_SPEED_100, player.speed + ACCEL_RATE * accelFactor * dt);
+  } else {
+    // At higher angles: decelerate toward target speed
+    player.speed = lerp(player.speed, targetSpeed, DECEL_RATE * dt);
+  }
 
-  var targetAngle = player.vx * 0.12;
-  player.angle = lerp(player.angle, targetAngle, 0.1 * dt);
+  // 3. Convert angle + speed to velocity
+  var angleRad = player.angleDeg * Math.PI / 180;
+  var pxSpeed = player.speed * speedScale * dt;
+  var vx = pxSpeed * Math.sin(angleRad);
+  var vy = pxSpeed * Math.cos(angleRad);
 
+  // 4. Move player
+  player.x += vx;
+  player.y += vy;
+
+  // 5. Camera
   var targetCamY = player.y - canvasHeight * 0.33;
   camera.y = lerp(camera.y, targetCamY, 0.06 * dt);
 
+  // 6. Score: count obstacle groups passed
+  var scoredGroups = {};
   for (var i = 0; i < obstacles.length; i++) {
     var o = obstacles[i];
     if (!o.passed && player.y > o.y + o.height) {
       o.passed = true;
-      score++;
+      if (!scoredGroups[o.groupId]) {
+        scoredGroups[o.groupId] = true;
+        score++;
+      }
     }
   }
 
@@ -387,6 +395,7 @@ function updatePlaying(dt) {
 }
 
 function updateGameOver(dt) {
+  tapQueue = [];
   if (player.deathScale > 0.1) {
     player.deathScale = lerp(player.deathScale, 0, 0.04 * dt);
     player.deathAngle += 0.15 * dt;
@@ -399,6 +408,7 @@ function updateGameOver(dt) {
 }
 
 function updateTitle(dt) {
+  tapQueue = [];
   titleAnimTime += dt * 0.02;
   if (input.anyPress) {
     startGame();
@@ -516,7 +526,7 @@ function drawPlane() {
     ctx.rotate(player.deathAngle);
     ctx.scale(player.deathScale, player.deathScale);
   } else {
-    ctx.rotate(player.angle);
+    ctx.rotate(player.angleDeg * Math.PI / 180);
   }
 
   ctx.strokeStyle = "#FFFFFF";
