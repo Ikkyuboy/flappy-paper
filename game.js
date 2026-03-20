@@ -10,30 +10,31 @@ const MAX_FALL_SPEED = 4.5;
 const HORIZONTAL_DRAG = 0.12;
 const WALL_THICKNESS = 30;
 const PLATFORM_HEIGHT = 10;
-const PLATFORM_MIN_WIDTH = 50;
-const PLATFORM_MAX_WIDTH = 120;
-const OBSTACLE_MIN_GAP = 140;
-const OBSTACLE_MAX_GAP = 220;
+const OBSTACLE_MIN_GAP = 130;
+const OBSTACLE_MAX_GAP = 190;
 const SPAWN_AHEAD = 800;
 const CLEANUP_BEHIND = 400;
-const PLAYER_WIDTH = 28;
-const PLAYER_HEIGHT = 8;
-const GAME_OVER_DELAY = 800; // ms before restart allowed
+const PLAYER_WIDTH = 22;
+const PLAYER_HEIGHT = 14;
+const GAME_OVER_DELAY = 800;
+const WINDOW_INTERVAL = 250; // Y interval between windows
+const WINDOW_WIDTH = 60;
+const WINDOW_HEIGHT = 50;
+const POINTS_PER_THEME = 20;
 
-// Colors
-const COLOR_BG = "#F5F0E8";
-const COLOR_GRID = "#E8E3DB";
-const COLOR_WALL = "#D4CFC5";
-const COLOR_WALL_EDGE = "#B0A898";
-const COLOR_PLATFORM = "#C4A882";
-const COLOR_PLATFORM_SHADOW = "rgba(0,0,0,0.1)";
-const COLOR_PLANE_BODY = "#FFFFFF";
-const COLOR_PLANE_STROKE = "#8899AA";
-const COLOR_PLANE_FOLD = "#C0C8D0";
-const COLOR_HUD_BG = "rgba(0,0,0,0.15)";
-const COLOR_HUD_TEXT = "#554433";
-const COLOR_TITLE_TEXT = "#443322";
-const COLOR_SUBTITLE = "#887766";
+// === COLOR THEMES ===
+const THEMES = [
+  { brick: "#7B5B4C", brickLight: "#8E6E5E", mortar: "#4A3530", window: "#4488CC" },
+  { brick: "#8B3030", brickLight: "#A04040", mortar: "#4A1515", window: "#CC4444" },
+  { brick: "#3B6B3B", brickLight: "#4A8A4A", mortar: "#1A3A1A", window: "#44CC66" },
+  { brick: "#3B4B8B", brickLight: "#4A5AA0", mortar: "#1A2550", window: "#4488FF" },
+  { brick: "#6B3B7B", brickLight: "#8A4A9A", mortar: "#3A1A4A", window: "#AA44CC" },
+  { brick: "#8B7B30", brickLight: "#A09040", mortar: "#4A4015", window: "#CCCC44" },
+];
+
+function getCurrentTheme() {
+  return THEMES[Math.floor(score / POINTS_PER_THEME) % THEMES.length];
+}
 
 // === CANVAS SETUP ===
 const canvas = document.getElementById("gameCanvas");
@@ -58,29 +59,51 @@ function resizeCanvas() {
   towerWidth = canvasWidth - WALL_THICKNESS * 2;
   towerLeft = WALL_THICKNESS;
 
-  // Regenerate grid pattern
-  createGridPattern();
+  createBrickPattern();
 }
 
-// Offscreen grid pattern
-let gridPattern = null;
-function createGridPattern() {
-  const size = 24;
+// === BRICK PATTERN ===
+let brickPattern = null;
+let brickPatternThemeIndex = -1;
+
+function createBrickPattern() {
+  const theme = getCurrentTheme();
+  const themeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
+  brickPatternThemeIndex = themeIdx;
+
+  const brickW = 28;
+  const brickH = 14;
+  const mortarW = 2;
+  const patW = brickW + mortarW;
+  const patH = (brickH + mortarW) * 2;
+
   const offscreen = document.createElement("canvas");
-  offscreen.width = size;
-  offscreen.height = size;
+  offscreen.width = patW;
+  offscreen.height = patH;
   const octx = offscreen.getContext("2d");
-  octx.fillStyle = COLOR_BG;
-  octx.fillRect(0, 0, size, size);
-  octx.strokeStyle = COLOR_GRID;
-  octx.lineWidth = 0.5;
-  octx.beginPath();
-  octx.moveTo(size, 0);
-  octx.lineTo(size, size);
-  octx.moveTo(0, size);
-  octx.lineTo(size, size);
-  octx.stroke();
-  gridPattern = ctx.createPattern(offscreen, "repeat");
+
+  // Mortar background
+  octx.fillStyle = theme.mortar;
+  octx.fillRect(0, 0, patW, patH);
+
+  // Row 1 (full brick)
+  octx.fillStyle = theme.brick;
+  octx.fillRect(0, 0, brickW, brickH);
+  // Subtle brick shading
+  octx.fillStyle = theme.brickLight;
+  octx.fillRect(1, 1, brickW - 2, 3);
+
+  // Row 2 (offset by half)
+  const offset = Math.floor(patW / 2);
+  octx.fillStyle = theme.brick;
+  octx.fillRect(-offset, brickH + mortarW, brickW, brickH);
+  octx.fillRect(-offset + patW, brickH + mortarW, brickW, brickH);
+  // Shading for offset row
+  octx.fillStyle = theme.brickLight;
+  octx.fillRect(-offset + 1, brickH + mortarW + 1, brickW - 2, 3);
+  octx.fillRect(-offset + patW + 1, brickH + mortarW + 1, brickW - 2, 3);
+
+  brickPattern = ctx.createPattern(offscreen, "repeat");
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -124,43 +147,33 @@ let lastSide = "left";
 
 function resetObstacles() {
   obstacles = [];
-  lastObstacleY = 200; // first obstacle starts a bit below
+  lastObstacleY = 250;
   lastSide = Math.random() < 0.5 ? "left" : "right";
-}
-
-function getDifficulty() {
-  // Ramps from 0 to 1 over 5000 distance units
-  return Math.min(player.y / 5000, 1.0);
 }
 
 function generateObstacles() {
   const generateTo = camera.y + canvasHeight + SPAWN_AHEAD;
-  const diff = getDifficulty();
 
   while (lastObstacleY < generateTo) {
-    const minGap = OBSTACLE_MIN_GAP - diff * 30;
-    const maxGap = OBSTACLE_MAX_GAP - diff * 60;
-    const gap = minGap + Math.random() * (maxGap - minGap);
+    const gap = OBSTACLE_MIN_GAP + Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP);
     lastObstacleY += gap;
 
-    // Switch sides with weighted randomness
-    if (Math.random() < 0.6) {
+    // Alternate sides with weighted randomness
+    if (Math.random() < 0.65) {
       lastSide = lastSide === "left" ? "right" : "left";
     }
 
-    const minW = PLATFORM_MIN_WIDTH + diff * 30;
-    const maxW = PLATFORM_MAX_WIDTH + diff * 40;
-    const platWidth = minW + Math.random() * (maxW - minW);
-
-    // Ensure platform doesn't block more than 60% of tower width
-    const clampedWidth = Math.min(platWidth, towerWidth * 0.6);
+    // Platforms are long: 65-80% of tower width
+    const platRatio = 0.65 + Math.random() * 0.15;
+    const platWidth = towerWidth * platRatio;
 
     obstacles.push({
-      x: lastSide === "left" ? 0 : towerWidth - clampedWidth,
+      x: lastSide === "left" ? 0 : towerWidth - platWidth,
       y: lastObstacleY,
-      width: clampedWidth,
+      width: platWidth,
       height: PLATFORM_HEIGHT,
-      side: lastSide
+      side: lastSide,
+      passed: false
     });
   }
 }
@@ -187,7 +200,6 @@ function handleKeyUp(e) {
 window.addEventListener("keydown", handleKeyDown);
 window.addEventListener("keyup", handleKeyUp);
 
-// Touch handling
 function getTouchSide(x) {
   return x < canvasWidth / 2 ? "left" : "right";
 }
@@ -230,7 +242,6 @@ function updateTouchInput() {
   input.right = r;
 }
 
-// Mouse (for desktop testing)
 canvas.addEventListener("mousedown", (e) => {
   const rect = canvas.getBoundingClientRect();
   const side = getTouchSide(e.clientX - rect.left);
@@ -304,6 +315,10 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+function padScore(n, len) {
+  return String(n).padStart(len, "0");
+}
+
 // === GAME LOGIC ===
 function startGame() {
   gameState = "PLAYING";
@@ -312,6 +327,7 @@ function startGame() {
   resetObstacles();
   particles = [];
   camera.y = player.y - canvasHeight * 0.33;
+  createBrickPattern();
   generateObstacles();
 }
 
@@ -330,22 +346,34 @@ function updatePlaying(dt) {
     player.vx = lerp(player.vx, 0, 0.08 * dt);
   }
 
-  // Prevent going upward (minimum fall speed)
+  // Minimum fall speed
   if (player.vy < 0.3) player.vy = 0.3;
 
   player.x += player.vx * dt;
   player.y += player.vy * dt;
 
   // Visual angle
-  const targetAngle = player.vx * 0.12 + player.vy * 0.02;
+  const targetAngle = player.vx * 0.12;
   player.angle = lerp(player.angle, targetAngle, 0.1 * dt);
 
   // Camera
   const targetCamY = player.y - canvasHeight * 0.33;
   camera.y = lerp(camera.y, targetCamY, 0.06 * dt);
 
-  // Score
-  score = Math.floor(player.y / 10);
+  // Score: count obstacles passed
+  const prevScore = score;
+  for (const o of obstacles) {
+    if (!o.passed && player.y > o.y + o.height) {
+      o.passed = true;
+      score++;
+    }
+  }
+
+  // Regenerate brick pattern if theme changed
+  const newThemeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
+  if (newThemeIdx !== brickPatternThemeIndex) {
+    createBrickPattern();
+  }
 
   // Generate & cleanup
   generateObstacles();
@@ -365,14 +393,12 @@ function updatePlaying(dt) {
 }
 
 function updateGameOver(dt) {
-  // Crumple animation
   if (player.deathScale > 0.1) {
     player.deathScale = lerp(player.deathScale, 0, 0.04 * dt);
     player.deathAngle += 0.15 * dt;
   }
   updateParticles(dt);
 
-  // Allow restart after delay
   if (input.anyPress && performance.now() - gameOverTime > GAME_OVER_DELAY) {
     gameState = "TITLE";
     input.anyPress = false;
@@ -389,31 +415,93 @@ function updateTitle(dt) {
 
 // === RENDERING ===
 function drawBackground() {
-  // Grid pattern background for tower area
+  // Brick pattern in tower area
   ctx.save();
-  ctx.translate(towerLeft, -camera.y % 24);
-  ctx.fillStyle = gridPattern;
-  ctx.fillRect(0, -(24), towerWidth, canvasHeight + 48);
+  ctx.beginPath();
+  ctx.rect(towerLeft, 0, towerWidth, canvasHeight);
+  ctx.clip();
+  ctx.translate(towerLeft, -(camera.y % 32));
+  ctx.fillStyle = brickPattern;
+  ctx.fillRect(0, -32, towerWidth, canvasHeight + 64);
   ctx.restore();
-
-  // Fill non-tower areas
-  ctx.fillStyle = "#3a3a3a";
-  ctx.fillRect(0, 0, towerLeft, canvasHeight);
-  ctx.fillRect(towerLeft + towerWidth, 0, WALL_THICKNESS, canvasHeight);
 }
 
 function drawWalls() {
-  // Left wall
-  ctx.fillStyle = COLOR_WALL;
+  // Left wall - metallic gray gradient
+  const lgrd = ctx.createLinearGradient(0, 0, towerLeft, 0);
+  lgrd.addColorStop(0, "#606060");
+  lgrd.addColorStop(0.3, "#909090");
+  lgrd.addColorStop(0.5, "#A8A8A8");
+  lgrd.addColorStop(0.7, "#909090");
+  lgrd.addColorStop(1, "#686868");
+  ctx.fillStyle = lgrd;
   ctx.fillRect(0, 0, towerLeft, canvasHeight);
 
   // Right wall
+  const rgrd = ctx.createLinearGradient(towerLeft + towerWidth, 0, canvasWidth, 0);
+  rgrd.addColorStop(0, "#686868");
+  rgrd.addColorStop(0.3, "#909090");
+  rgrd.addColorStop(0.5, "#A8A8A8");
+  rgrd.addColorStop(0.7, "#909090");
+  rgrd.addColorStop(1, "#606060");
+  ctx.fillStyle = rgrd;
   ctx.fillRect(towerLeft + towerWidth, 0, WALL_THICKNESS, canvasHeight);
 
-  // Inner edges
-  ctx.fillStyle = COLOR_WALL_EDGE;
-  ctx.fillRect(towerLeft - 2, 0, 2, canvasHeight);
-  ctx.fillRect(towerLeft + towerWidth, 0, 2, canvasHeight);
+  // Highlight lines
+  ctx.fillStyle = "#BBBBBB";
+  ctx.fillRect(towerLeft - 1, 0, 1, canvasHeight);
+  ctx.fillRect(towerLeft + towerWidth, 0, 1, canvasHeight);
+
+  // Shadow lines
+  ctx.fillStyle = "#444444";
+  ctx.fillRect(0, 0, 1, canvasHeight);
+  ctx.fillRect(canvasWidth - 1, 0, 1, canvasHeight);
+}
+
+function drawWindows() {
+  const theme = getCurrentTheme();
+  // Window positions at regular intervals
+  const startY = Math.floor((camera.y - WINDOW_HEIGHT) / WINDOW_INTERVAL) * WINDOW_INTERVAL;
+
+  for (let wy = startY; wy < camera.y + canvasHeight + WINDOW_HEIGHT; wy += WINDOW_INTERVAL) {
+    const screenY = wy - camera.y;
+
+    // Determine window x position based on row - alternate sides or center
+    const row = Math.floor(wy / WINDOW_INTERVAL);
+    let windowPositions;
+    if (row % 3 === 0) {
+      windowPositions = [towerLeft + towerWidth * 0.15 - WINDOW_WIDTH / 2];
+    } else if (row % 3 === 1) {
+      windowPositions = [towerLeft + towerWidth * 0.85 - WINDOW_WIDTH / 2];
+    } else {
+      windowPositions = [towerLeft + towerWidth * 0.5 - WINDOW_WIDTH / 2];
+    }
+
+    for (const wx of windowPositions) {
+      // Window frame (dark)
+      ctx.fillStyle = theme.mortar;
+      ctx.fillRect(wx - 2, screenY - 2, WINDOW_WIDTH + 4, WINDOW_HEIGHT + 4);
+
+      // Window glass
+      const wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
+      wgrd.addColorStop(0, theme.window);
+      wgrd.addColorStop(0.3, lightenColor(theme.window, 40));
+      wgrd.addColorStop(1, theme.window);
+      ctx.fillStyle = wgrd;
+      ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+      // Window shine
+      ctx.fillStyle = "rgba(255,255,255,0.25)";
+      ctx.fillRect(wx + 3, screenY + 3, WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.3);
+    }
+  }
+}
+
+function lightenColor(hex, amount) {
+  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + amount);
+  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + amount);
+  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + amount);
+  return `rgb(${r},${g},${b})`;
 }
 
 function drawPlatforms() {
@@ -424,34 +512,29 @@ function drawPlatforms() {
     const screenY = o.y - camera.y;
     if (screenY > canvasHeight + 20 || screenY + o.height < -20) continue;
 
-    // Shadow
-    ctx.fillStyle = COLOR_PLATFORM_SHADOW;
+    // Platform shadow
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
     ctx.fillRect(o.x + 2, screenY + 2, o.width, o.height);
 
-    // Platform body
-    ctx.fillStyle = COLOR_PLATFORM;
-    ctx.beginPath();
-    roundRect(ctx, o.x, screenY, o.width, o.height, 3);
-    ctx.fill();
+    // Platform body - white/light gray bar
+    ctx.fillStyle = "#E8E0D8";
+    ctx.fillRect(o.x, screenY, o.width, o.height);
 
-    // Highlight on top edge
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.fillRect(o.x + 1, screenY, o.width - 2, 2);
+    // Highlight on top
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(o.x, screenY, o.width, 2);
+
+    // Dark outline
+    ctx.strokeStyle = "#333333";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(o.x, screenY, o.width, o.height);
+
+    // Inner line for depth
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    ctx.fillRect(o.x, screenY + o.height - 2, o.width, 2);
   }
 
   ctx.restore();
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
 }
 
 function drawPlane() {
@@ -468,29 +551,26 @@ function drawPlane() {
     ctx.rotate(player.angle);
   }
 
-  // Paper airplane shape
-  const s = 1.0;
+  // V-shaped / chevron airplane (pointing downward, like original)
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
   ctx.beginPath();
-  ctx.moveTo(16 * s, 0);        // nose
-  ctx.lineTo(-12 * s, -7 * s);  // top wing tip
-  ctx.lineTo(-6 * s, 0);        // body notch
-  ctx.lineTo(-12 * s, 7 * s);   // bottom wing tip
+  ctx.moveTo(-10, -8);   // left wing tip
+  ctx.lineTo(0, 4);      // bottom center (nose)
+  ctx.lineTo(10, -8);    // right wing tip
+  ctx.stroke();
+
+  // Slight fill for visibility
+  ctx.fillStyle = "rgba(255,255,255,0.3)";
+  ctx.beginPath();
+  ctx.moveTo(-10, -8);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(10, -8);
   ctx.closePath();
-
-  // Fill
-  ctx.fillStyle = COLOR_PLANE_BODY;
   ctx.fill();
-  ctx.strokeStyle = COLOR_PLANE_STROKE;
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-
-  // Center fold line
-  ctx.beginPath();
-  ctx.moveTo(16 * s, 0);
-  ctx.lineTo(-6 * s, 0);
-  ctx.strokeStyle = COLOR_PLANE_FOLD;
-  ctx.lineWidth = 0.8;
-  ctx.stroke();
 
   ctx.restore();
 }
@@ -505,134 +585,136 @@ function drawParticles() {
     ctx.globalAlpha = p.life;
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
-    ctx.strokeStyle = COLOR_PLANE_STROKE;
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
     ctx.restore();
   }
   ctx.globalAlpha = 1;
 }
 
 function drawHUD() {
-  const text = score.toString();
-  ctx.font = "bold 24px 'Helvetica Neue', Arial, sans-serif";
+  ctx.save();
+  // Score - center top
+  ctx.font = "bold 20px 'Courier New', monospace";
   ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText(padScore(score, 3), canvasWidth / 2 + 1, 29);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(padScore(score, 3), canvasWidth / 2, 28);
 
-  // Background pill
-  const metrics = ctx.measureText(text);
-  const pw = metrics.width + 24;
-  const ph = 34;
-  const px = canvasWidth / 2 - pw / 2;
-  const py = 16;
-
-  ctx.fillStyle = COLOR_HUD_BG;
-  ctx.beginPath();
-  roundRect(ctx, px, py, pw, ph, 17);
-  ctx.fill();
-
-  // Score text
-  ctx.fillStyle = COLOR_HUD_TEXT;
-  ctx.fillText(text, canvasWidth / 2, py + 24);
+  // High score - right top
+  ctx.font = "bold 12px 'Courier New', monospace";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth - 9, 17);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth - 10, 16);
+  ctx.restore();
 }
 
 function drawTitleScreen() {
-  // Background
-  ctx.fillStyle = COLOR_BG;
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  // Use brown theme for title
+  const titleTheme = THEMES[0];
 
-  // Draw subtle grid
+  // Brick background (full screen)
   ctx.save();
-  ctx.fillStyle = gridPattern;
+  ctx.fillStyle = brickPattern;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   ctx.restore();
 
+  // Dim overlay for readability
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
   // Floating airplane animation
   const floatY = Math.sin(titleAnimTime * 2) * 15;
-  const floatX = Math.sin(titleAnimTime * 1.3) * 20;
   const floatAngle = Math.sin(titleAnimTime * 1.3) * 0.3;
 
   ctx.save();
-  ctx.translate(canvasWidth / 2 + floatX, canvasHeight * 0.32 + floatY);
+  ctx.translate(canvasWidth / 2, canvasHeight * 0.30 + floatY);
   ctx.rotate(floatAngle);
-  ctx.scale(2.5, 2.5);
+  ctx.scale(3, 3);
 
+  // V-shape
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(16, 0);
-  ctx.lineTo(-12, -7);
-  ctx.lineTo(-6, 0);
-  ctx.lineTo(-12, 7);
+  ctx.moveTo(-10, -8);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(10, -8);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.3)";
+  ctx.beginPath();
+  ctx.moveTo(-10, -8);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(10, -8);
   ctx.closePath();
-  ctx.fillStyle = COLOR_PLANE_BODY;
   ctx.fill();
-  ctx.strokeStyle = COLOR_PLANE_STROKE;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(16, 0);
-  ctx.lineTo(-6, 0);
-  ctx.strokeStyle = COLOR_PLANE_FOLD;
-  ctx.lineWidth = 0.6;
-  ctx.stroke();
 
   ctx.restore();
 
   // Title
   ctx.textAlign = "center";
-  ctx.fillStyle = COLOR_TITLE_TEXT;
-  ctx.font = "bold 36px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillText("紙ヒコーキ", canvasWidth / 2, canvasHeight * 0.52);
+  ctx.font = "bold 36px 'Courier New', monospace";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText("紙ヒコーキ", canvasWidth / 2 + 2, canvasHeight * 0.50 + 2);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText("紙ヒコーキ", canvasWidth / 2, canvasHeight * 0.50);
 
-  ctx.font = "16px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillStyle = COLOR_SUBTITLE;
-  ctx.fillText("Paper Airplane Chase", canvasWidth / 2, canvasHeight * 0.58);
+  ctx.font = "14px 'Courier New', monospace";
+  ctx.fillStyle = "#CCBBAA";
+  ctx.fillText("PAPER AIRPLANE CHASE", canvasWidth / 2, canvasHeight * 0.56);
 
   // Start prompt (blinking)
   const blink = Math.sin(performance.now() / 500) > 0;
   if (blink) {
-    ctx.font = "14px 'Helvetica Neue', Arial, sans-serif";
-    ctx.fillStyle = COLOR_SUBTITLE;
+    ctx.font = "14px 'Courier New', monospace";
+    ctx.fillStyle = "#FFFFFF";
     ctx.fillText("TAP or PRESS ANY KEY", canvasWidth / 2, canvasHeight * 0.72);
   }
 
   // High score
   if (highScore > 0) {
-    ctx.font = "14px 'Helvetica Neue', Arial, sans-serif";
-    ctx.fillStyle = COLOR_SUBTITLE;
-    ctx.fillText("BEST: " + highScore, canvasWidth / 2, canvasHeight * 0.80);
+    ctx.font = "bold 14px 'Courier New', monospace";
+    ctx.fillStyle = "#CCBBAA";
+    ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth / 2, canvasHeight * 0.80);
   }
 }
 
 function drawGameOverScreen() {
   // Dim overlay
-  ctx.fillStyle = "rgba(245, 240, 232, 0.6)";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   ctx.textAlign = "center";
 
-  // Game Over text
-  ctx.font = "bold 32px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillStyle = COLOR_TITLE_TEXT;
-  ctx.fillText("Game Over", canvasWidth / 2, canvasHeight * 0.35);
+  // Game Over
+  ctx.font = "bold 32px 'Courier New', monospace";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText("GAME OVER", canvasWidth / 2 + 2, canvasHeight * 0.35 + 2);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText("GAME OVER", canvasWidth / 2, canvasHeight * 0.35);
 
-  // Score
-  ctx.font = "bold 48px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillStyle = COLOR_TITLE_TEXT;
-  ctx.fillText(score.toString(), canvasWidth / 2, canvasHeight * 0.48);
+  // Score label
+  ctx.font = "14px 'Courier New', monospace";
+  ctx.fillStyle = "#CCBBAA";
+  ctx.fillText("SCORE", canvasWidth / 2, canvasHeight * 0.42);
 
-  ctx.font = "14px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillStyle = COLOR_SUBTITLE;
-  ctx.fillText("SCORE", canvasWidth / 2, canvasHeight * 0.40);
+  // Score value
+  ctx.font = "bold 48px 'Courier New', monospace";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(padScore(score, 3), canvasWidth / 2, canvasHeight * 0.52);
 
   // High score
-  ctx.font = "16px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillStyle = COLOR_SUBTITLE;
-  ctx.fillText("BEST: " + highScore, canvasWidth / 2, canvasHeight * 0.56);
+  ctx.font = "bold 16px 'Courier New', monospace";
+  ctx.fillStyle = "#CCBBAA";
+  ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth / 2, canvasHeight * 0.60);
 
-  // New high score indicator
+  // New record
   if (score >= highScore && score > 0) {
-    ctx.font = "bold 14px 'Helvetica Neue', Arial, sans-serif";
-    ctx.fillStyle = "#CC8844";
-    ctx.fillText("NEW RECORD!", canvasWidth / 2, canvasHeight * 0.61);
+    ctx.font = "bold 16px 'Courier New', monospace";
+    ctx.fillStyle = "#FFCC44";
+    ctx.fillText("NEW RECORD!", canvasWidth / 2, canvasHeight * 0.66);
   }
 
   // Restart prompt
@@ -640,15 +722,16 @@ function drawGameOverScreen() {
   if (canRestart) {
     const blink = Math.sin(performance.now() / 500) > 0;
     if (blink) {
-      ctx.font = "14px 'Helvetica Neue', Arial, sans-serif";
-      ctx.fillStyle = COLOR_SUBTITLE;
-      ctx.fillText("TAP or PRESS ANY KEY", canvasWidth / 2, canvasHeight * 0.74);
+      ctx.font = "14px 'Courier New', monospace";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillText("TAP or PRESS ANY KEY", canvasWidth / 2, canvasHeight * 0.76);
     }
   }
 }
 
 function renderPlaying() {
   drawBackground();
+  drawWindows();
   drawPlatforms();
   drawParticles();
   if (!player.dead || player.deathScale > 0.15) {
@@ -671,7 +754,6 @@ function gameLoop(timestamp) {
   const dt = Math.min(rawDt, 3);
   lastTime = timestamp;
 
-  // Clear
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   switch (gameState) {
@@ -689,9 +771,7 @@ function gameLoop(timestamp) {
       break;
   }
 
-  // Reset per-frame input
   input.anyPress = false;
-
   requestAnimationFrame(gameLoop);
 }
 
