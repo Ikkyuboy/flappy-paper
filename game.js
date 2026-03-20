@@ -106,15 +106,15 @@ function createBrickPattern() {
   brickPattern = ctx.createPattern(offscreen, "repeat");
 }
 
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
-
-// === STATE ===
+// === STATE (declared before resizeCanvas which needs score) ===
 let gameState = "TITLE";
 let score = 0;
 let highScore = parseInt(localStorage.getItem("kamiHikouki_highScore")) || 0;
 let gameOverTime = 0;
 let titleAnimTime = 0;
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
 
 // === PLAYER ===
 let player = {
