@@ -40,7 +40,6 @@
     }
     .go-btn:active { opacity: 0.7; }
     #btnRegister { background: #E8E0D8; color: #1A1410; }
-    #btnSkip { background: rgba(255,255,255,0.15); color: #CCBBAA; }
     /* Ranking */
     #rankingPanel {
       display: none; pointer-events: auto; width: 340px; max-width: 90vw;
@@ -89,7 +88,6 @@
       </div>
       <div class="go-buttons">
         <button class="go-btn" id="btnRegister">REGISTER</button>
-        <button class="go-btn" id="btnSkip">SKIP</button>
       </div>
     </div>
     <div id="rankingPanel">
@@ -1011,11 +1009,6 @@ document.getElementById("btnRegister").addEventListener("click", function(e) {
   showRankingUI(name);
 });
 
-document.getElementById("btnSkip").addEventListener("click", function(e) {
-  e.stopPropagation();
-  showRankingUI("");
-});
-
 document.getElementById("tabLocal").addEventListener("click", function(e) {
   e.stopPropagation();
   currentRankTab = "local";
@@ -1041,12 +1034,18 @@ document.getElementById("rankRestartBtn").addEventListener("click", function(e) 
   gameState = "TITLE";
 });
 
-// Prevent game over UI interactions from triggering game input
+// Tapping outside the panel skips to ranking
 document.getElementById("gameOverUI").addEventListener("touchstart", function(e) {
   e.stopPropagation();
+  if (gameOverPhase === "input" && e.target === this) {
+    showRankingUI("");
+  }
 }, { passive: false });
 document.getElementById("gameOverUI").addEventListener("mousedown", function(e) {
   e.stopPropagation();
+  if (gameOverPhase === "input" && e.target === this) {
+    showRankingUI("");
+  }
 });
 
 // === INIT ===
