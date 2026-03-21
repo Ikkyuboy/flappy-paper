@@ -28,9 +28,9 @@ const CLEANUP_BEHIND = 400;
 const PLAYER_WIDTH = 22;
 const PLAYER_HEIGHT = 14;
 const GAME_OVER_DELAY = 800;
-const WINDOW_INTERVAL = 250;
-const WINDOW_WIDTH = 60;
-const WINDOW_HEIGHT = 50;
+const WINDOW_INTERVAL = 300;
+const WINDOW_WIDTH = 90;
+const WINDOW_HEIGHT = 70;
 const POINTS_PER_THEME = 20;
 
 // === MOVEMENT CONSTANTS ===
@@ -45,9 +45,11 @@ const DECEL_RATE = 0.05;         // lerp factor for deceleration
 // === OBSTACLE CONSTANTS ===
 const DOUBLE_OBSTACLE_CHANCE = 0.2; // mostly single-side
 const SINGLE_MIN_RATIO = 0.4;      // 80/200
-const SINGLE_MAX_RATIO = 0.55;     // 110/200
+const SINGLE_MAX_RATIO = 0.515;    // 103/200
 const DOUBLE_GAP_RATIO = 0.15;     // fixed 30/200 gap for double-side
 const SPEED_LEVEL_BONUS = 10;      // speed bonus per theme level
+const THICK_OBS_GAP_RATIO = 0.25;  // 50/200 gap for thick obstacles
+const THICK_OBS_POINTS = 5;        // thick obstacle zone = last 5 points before theme change
 
 // === COLOR THEMES ===
 const THEMES = [
@@ -172,12 +174,16 @@ let obstacles = [];
 let lastObstacleY = 0;
 let obstacleGroupId = 0;
 let lastSingleSide = "left";
+let lastThickSegment = null;
+let thickZoneGapSide = "right";
 
 function resetObstacles() {
   obstacles = [];
   lastObstacleY = 250;
   obstacleGroupId = 0;
   lastSingleSide = "left";
+  lastThickSegment = null;
+  thickZoneGapSide = "right";
 }
 
 function generateObstacles() {
@@ -189,40 +195,70 @@ function generateObstacles() {
     lastObstacleY += gap;
     obstacleGroupId++;
 
-    var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
+    // Check if in thick obstacle zone (last 5 points before theme change)
+    var posInTheme = ((obstacleGroupId - 1) % POINTS_PER_THEME) + 1;
+    var inThickZone = posInTheme > POINTS_PER_THEME - THICK_OBS_POINTS
+                      && obstacleGroupId > THICK_OBS_POINTS;
 
-    if (isDouble) {
-      // Double-side: fixed gap of 30 units (DOUBLE_GAP_RATIO of towerWidth)
-      var gapPx = towerWidth * DOUBLE_GAP_RATIO;
-      var usable = towerWidth - gapPx;
-      // Split usable space randomly between left and right
-      var leftFrac = 0.3 + Math.random() * 0.4; // 30-70% of usable to left
-      var leftW = usable * leftFrac;
-      var rightW = usable - leftW;
+    if (inThickZone) {
+      // Adjust previous thick segment's height to connect seamlessly
+      if (lastThickSegment) {
+        lastThickSegment.height = lastObstacleY - lastThickSegment.y;
+      } else {
+        // First segment in zone - determine gap side
+        var themeLevel = Math.floor((obstacleGroupId - 1) / POINTS_PER_THEME);
+        thickZoneGapSide = (themeLevel % 2 === 0) ? "right" : "left";
+      }
 
-      obstacles.push({
-        x: 0, y: lastObstacleY,
-        width: leftW, height: platH,
-        side: "left", passed: false, groupId: obstacleGroupId
-      });
-      obstacles.push({
-        x: towerWidth - rightW, y: lastObstacleY,
-        width: rightW, height: platH,
-        side: "right", passed: false, groupId: obstacleGroupId
-      });
-    } else {
-      // Single-side: one wall, alternating left/right
-      lastSingleSide = (lastSingleSide === "left") ? "right" : "left";
-      var side = lastSingleSide;
-      var platRatio = SINGLE_MIN_RATIO + Math.random() * (SINGLE_MAX_RATIO - SINGLE_MIN_RATIO);
-      var platWidth = towerWidth * platRatio;
-
-      obstacles.push({
-        x: side === "left" ? 0 : towerWidth - platWidth,
+      var thickWidth = towerWidth * (1 - THICK_OBS_GAP_RATIO);
+      var obs = {
+        x: thickZoneGapSide === "right" ? 0 : towerWidth - thickWidth,
         y: lastObstacleY,
-        width: platWidth, height: platH,
-        side: side, passed: false, groupId: obstacleGroupId
-      });
+        width: thickWidth,
+        height: gap,
+        side: thickZoneGapSide === "right" ? "left" : "right",
+        passed: false, groupId: obstacleGroupId,
+        thick: true
+      };
+      obstacles.push(obs);
+      lastThickSegment = obs;
+    } else {
+      lastThickSegment = null;
+
+      var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
+
+      if (isDouble) {
+        // Double-side: fixed gap of 30 units (DOUBLE_GAP_RATIO of towerWidth)
+        var gapPx = towerWidth * DOUBLE_GAP_RATIO;
+        var usable = towerWidth - gapPx;
+        var leftFrac = 0.3 + Math.random() * 0.4;
+        var leftW = usable * leftFrac;
+        var rightW = usable - leftW;
+
+        obstacles.push({
+          x: 0, y: lastObstacleY,
+          width: leftW, height: platH,
+          side: "left", passed: false, groupId: obstacleGroupId
+        });
+        obstacles.push({
+          x: towerWidth - rightW, y: lastObstacleY,
+          width: rightW, height: platH,
+          side: "right", passed: false, groupId: obstacleGroupId
+        });
+      } else {
+        // Single-side: one wall, alternating left/right
+        lastSingleSide = (lastSingleSide === "left") ? "right" : "left";
+        var side = lastSingleSide;
+        var platRatio = SINGLE_MIN_RATIO + Math.random() * (SINGLE_MAX_RATIO - SINGLE_MIN_RATIO);
+        var platWidth = towerWidth * platRatio;
+
+        obstacles.push({
+          x: side === "left" ? 0 : towerWidth - platWidth,
+          y: lastObstacleY,
+          width: platWidth, height: platH,
+          side: side, passed: false, groupId: obstacleGroupId
+        });
+      }
     }
   }
 }
@@ -486,7 +522,7 @@ function drawWindows() {
     }
 
     ctx.fillStyle = theme.mortar;
-    ctx.fillRect(wx - 2, screenY - 2, WINDOW_WIDTH + 4, WINDOW_HEIGHT + 4);
+    ctx.fillRect(wx - 4, screenY - 4, WINDOW_WIDTH + 8, WINDOW_HEIGHT + 8);
 
     var wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
     wgrd.addColorStop(0, theme.window);
@@ -509,21 +545,43 @@ function drawPlatforms() {
     var screenY = o.y - camera.y;
     if (screenY > canvasHeight + 20 || screenY + o.height < -20) continue;
 
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.fillRect(o.x + 2, screenY + 2, o.width, o.height);
+    if (o.thick) {
+      // Thick obstacle: draw as brick wall extension
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(o.x, screenY, o.width, o.height);
+      ctx.clip();
+      ctx.fillStyle = brickPattern;
+      ctx.save();
+      ctx.translate(-towerLeft, 0);
+      ctx.fillRect(o.x, screenY, o.width, o.height);
+      ctx.restore();
+      ctx.restore();
 
-    ctx.fillStyle = "#E8E0D8";
-    ctx.fillRect(o.x, screenY, o.width, o.height);
+      // Edge highlight on the gap side
+      var edgeX = (o.side === "left") ? o.x + o.width : o.x;
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.fillRect(edgeX - 1, screenY, 2, o.height);
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.fillRect(edgeX, screenY, 1, o.height);
+    } else {
+      // Normal obstacle
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.fillRect(o.x + 2, screenY + 2, o.width, o.height);
 
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillRect(o.x, screenY, o.width, 2);
+      ctx.fillStyle = "#E8E0D8";
+      ctx.fillRect(o.x, screenY, o.width, o.height);
 
-    ctx.strokeStyle = "#333333";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(o.x, screenY, o.width, o.height);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(o.x, screenY, o.width, 2);
 
-    ctx.fillStyle = "rgba(0,0,0,0.1)";
-    ctx.fillRect(o.x, screenY + o.height - 2, o.width, 2);
+      ctx.strokeStyle = "#333333";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(o.x, screenY, o.width, o.height);
+
+      ctx.fillStyle = "rgba(0,0,0,0.1)";
+      ctx.fillRect(o.x, screenY + o.height - 2, o.width, 2);
+    }
   }
 
   ctx.restore();
