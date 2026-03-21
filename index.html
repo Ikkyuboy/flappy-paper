@@ -794,7 +794,7 @@ function drawPlane() {
     ctx.rotate(player.deathAngle);
     ctx.scale(player.deathScale, player.deathScale);
   } else {
-    ctx.rotate(player.angleDeg * Math.PI / 180);
+    ctx.rotate(-player.angleDeg * Math.PI / 180);
   }
 
   // Paper airplane shape - nose pointing down
