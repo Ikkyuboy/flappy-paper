@@ -761,10 +761,9 @@ function drawPlatforms() {
     if (screenY > canvasHeight + 20 || screenY + o.height < -20) continue;
 
     if (o.thick) {
-      // Thick obstacle: hollow with 10px border
-      ctx.strokeStyle = "#E8E0D8";
-      ctx.lineWidth = 10;
-      ctx.strokeRect(o.x + 5, screenY + 5, o.width - 10, o.height - 10);
+      // Thick obstacle: white wall
+      ctx.fillStyle = "#E8E0D8";
+      ctx.fillRect(o.x, screenY, o.width, o.height);
 
       // Edge line on the gap side
       var edgeX = (o.side === "left") ? o.x + o.width : o.x;
