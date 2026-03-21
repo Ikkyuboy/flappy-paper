@@ -116,8 +116,8 @@ const PLAYER_WIDTH = 22;
 const PLAYER_HEIGHT = 14;
 const GAME_OVER_DELAY = 800;
 const WINDOW_INTERVAL = 300;
-const WINDOW_WIDTH = 90;
-const WINDOW_HEIGHT = 70;
+const WINDOW_WIDTH = 110;
+const WINDOW_HEIGHT = 85;
 const POINTS_PER_THEME = 20;
 
 // === MOVEMENT CONSTANTS ===
@@ -761,9 +761,10 @@ function drawPlatforms() {
     if (screenY > canvasHeight + 20 || screenY + o.height < -20) continue;
 
     if (o.thick) {
-      // Thick obstacle: white wall
-      ctx.fillStyle = "#E8E0D8";
-      ctx.fillRect(o.x, screenY, o.width, o.height);
+      // Thick obstacle: hollow with 10px border
+      ctx.strokeStyle = "#E8E0D8";
+      ctx.lineWidth = 10;
+      ctx.strokeRect(o.x + 5, screenY + 5, o.width - 10, o.height - 10);
 
       // Edge line on the gap side
       var edgeX = (o.side === "left") ? o.x + o.width : o.x;
@@ -908,24 +909,59 @@ function drawTitleScreen() {
 
   ctx.save();
   ctx.translate(canvasWidth / 2, canvasHeight * 0.30 + floatY);
-  ctx.rotate(floatAngle);
+  ctx.rotate(floatAngle - Math.PI / 3);
   ctx.scale(3, 3);
-  ctx.strokeStyle = "#FFFFFF";
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
+
+  // Right wing (lighter)
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.beginPath();
-  ctx.moveTo(-10, -8);
-  ctx.lineTo(0, 4);
-  ctx.lineTo(10, -8);
-  ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.beginPath();
-  ctx.moveTo(-10, -8);
-  ctx.lineTo(0, 4);
-  ctx.lineTo(10, -8);
+  ctx.moveTo(0, 12);
+  ctx.lineTo(10, -6);
+  ctx.lineTo(0, -2);
   ctx.closePath();
   ctx.fill();
+
+  // Left wing (darker)
+  ctx.fillStyle = "rgba(220,220,230,0.85)";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(-10, -6);
+  ctx.lineTo(0, -2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Center fold line
+  ctx.strokeStyle = "rgba(180,180,190,0.7)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(0, -2);
+  ctx.stroke();
+
+  // Wing fold lines
+  ctx.strokeStyle = "rgba(160,160,170,0.4)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.lineTo(6, -4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.lineTo(-6, -4);
+  ctx.stroke();
+
+  // Outline
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(10, -6);
+  ctx.lineTo(0, -2);
+  ctx.lineTo(-10, -6);
+  ctx.closePath();
+  ctx.stroke();
+
   ctx.restore();
 
   ctx.textAlign = "center";
