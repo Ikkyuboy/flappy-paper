@@ -92,8 +92,8 @@
     </div>
     <div id="rankingPanel">
       <div class="rank-tabs">
-        <button class="rank-tab active" id="tabLocal">LOCAL</button>
-        <button class="rank-tab" id="tabWorld">WORLD</button>
+        <button class="rank-tab active" id="tabWorld">WORLD</button>
+        <button class="rank-tab" id="tabLocal">LOCAL</button>
       </div>
       <div class="rank-list" id="rankList"></div>
       <button id="rankRestartBtn">TAP TO RESTART</button>
@@ -215,9 +215,9 @@ function showRankingUI(highlightName) {
   var rankPanel = document.getElementById("rankingPanel");
   rankPanel.classList.add("active");
   gameOverPhase = "ranking";
-  currentRankTab = "local";
-  document.getElementById("tabLocal").classList.add("active");
-  document.getElementById("tabWorld").classList.remove("active");
+  currentRankTab = "world";
+  document.getElementById("tabWorld").classList.add("active");
+  document.getElementById("tabLocal").classList.remove("active");
   renderRankList(highlightName);
 }
 
@@ -475,6 +475,10 @@ function getTouchSide(x) {
 
 function handleKeyDown(e) {
   if (e.repeat) return;
+  if (gameOverPhase === "input") {
+    // Don't intercept keys while typing name
+    return;
+  }
   if (gameOverPhase) {
     input.anyPress = true;
     e.preventDefault();
@@ -490,6 +494,7 @@ window.addEventListener("keydown", handleKeyDown);
 
 canvas.addEventListener("touchstart", function(e) {
   e.preventDefault();
+  if (gameOverPhase === "input") return;
   for (var i = 0; i < e.changedTouches.length; i++) {
     var touch = e.changedTouches[i];
     var rect = canvas.getBoundingClientRect();
@@ -503,6 +508,7 @@ canvas.addEventListener("touchend", function(e) {
 }, { passive: false });
 
 canvas.addEventListener("mousedown", function(e) {
+  if (gameOverPhase === "input") return;
   var rect = canvas.getBoundingClientRect();
   tapQueue.push(getTouchSide(e.clientX - rect.left));
   input.anyPress = true;
@@ -660,11 +666,9 @@ function updateGameOver(dt) {
   if (gameOverPhase === "" && performance.now() - gameOverTime > GAME_OVER_DELAY) {
     showGameOverUI();
   }
-  // Any press skips current phase
+  // Any press skips ranking phase (input phase requires REGISTER button)
   if (input.anyPress) {
-    if (gameOverPhase === "input") {
-      showRankingUI("");
-    } else if (gameOverPhase === "ranking") {
+    if (gameOverPhase === "ranking") {
       hideGameOverUI();
       gameState = "TITLE";
     }
@@ -1041,10 +1045,7 @@ function gameLoop(timestamp) {
 document.getElementById("btnRegister").addEventListener("click", function(e) {
   e.stopPropagation();
   var name = document.getElementById("nameInput").value.trim();
-  if (!name) {
-    document.getElementById("nameInput").focus();
-    return;
-  }
+  if (!name) name = "名無し";
   lastRegisteredName = name;
   addLocalRanking(name, score);
   submitWorldRanking(name, score, function() {
@@ -1082,9 +1083,7 @@ document.getElementById("rankRestartBtn").addEventListener("click", function(e) 
 document.getElementById("gameOverUI").addEventListener("touchstart", function(e) {
   e.stopPropagation();
   if (e.target === this) {
-    if (gameOverPhase === "input") {
-      showRankingUI("");
-    } else if (gameOverPhase === "ranking") {
+    if (gameOverPhase === "ranking") {
       hideGameOverUI();
       gameState = "TITLE";
     }
@@ -1093,9 +1092,7 @@ document.getElementById("gameOverUI").addEventListener("touchstart", function(e)
 document.getElementById("gameOverUI").addEventListener("mousedown", function(e) {
   e.stopPropagation();
   if (e.target === this) {
-    if (gameOverPhase === "input") {
-      showRankingUI("");
-    } else if (gameOverPhase === "ranking") {
+    if (gameOverPhase === "ranking") {
       hideGameOverUI();
       gameState = "TITLE";
     }
