@@ -236,12 +236,22 @@ function generateObstacles() {
       var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
 
       if (isDouble) {
-        // Double-side: fixed gap of 30 units (DOUBLE_GAP_RATIO of towerWidth)
+        // Double-side obstacle
         var gapPx = towerWidth * DOUBLE_GAP_RATIO;
-        var usable = towerWidth - gapPx;
-        var leftFrac = 0.3 + Math.random() * 0.4;
-        var leftW = usable * leftFrac;
-        var rightW = usable - leftW;
+        if (score > 60) {
+          // Gap centered within 15 units of center (in 200-scale)
+          var centerOffset = (Math.random() * 30 - 15) * (towerWidth / 200);
+          var gapCenter = towerWidth / 2 + centerOffset;
+          var leftW = gapCenter - gapPx / 2;
+          var rightW = towerWidth - (gapCenter + gapPx / 2);
+          if (leftW < 0) leftW = 0;
+          if (rightW < 0) rightW = 0;
+        } else {
+          var usable = towerWidth - gapPx;
+          var leftFrac = 0.3 + Math.random() * 0.4;
+          var leftW = usable * leftFrac;
+          var rightW = usable - leftW;
+        }
 
         obstacles.push({
           x: 0, y: lastObstacleY,
@@ -257,7 +267,8 @@ function generateObstacles() {
         // Single-side: one wall, alternating left/right
         lastSingleSide = (lastSingleSide === "left") ? "right" : "left";
         var side = lastSingleSide;
-        var platRatio = SINGLE_MIN_RATIO + Math.random() * (SINGLE_MAX_RATIO - SINGLE_MIN_RATIO);
+        var maxRatio = score > 60 ? 0.495 : SINGLE_MAX_RATIO; // 99/200 cap after score 60
+        var platRatio = SINGLE_MIN_RATIO + Math.random() * (maxRatio - SINGLE_MIN_RATIO);
         var platWidth = towerWidth * platRatio;
 
         obstacles.push({
