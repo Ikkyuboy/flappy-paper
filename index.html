@@ -476,7 +476,10 @@ function getTouchSide(x) {
 function handleKeyDown(e) {
   if (e.repeat) return;
   if (gameOverPhase === "input") {
-    // Don't intercept keys while typing name
+    // If typing in name input, let keys through; otherwise skip = register
+    if (document.activeElement === document.getElementById("nameInput")) return;
+    doRegister();
+    e.preventDefault();
     return;
   }
   if (gameOverPhase) {
@@ -1042,8 +1045,8 @@ function gameLoop(timestamp) {
 }
 
 // === RANKING UI EVENT LISTENERS ===
-document.getElementById("btnRegister").addEventListener("click", function(e) {
-  e.stopPropagation();
+function doRegister() {
+  if (gameOverPhase !== "input") return;
   var name = document.getElementById("nameInput").value.trim();
   if (!name) name = "名無し";
   lastRegisteredName = name;
@@ -1052,6 +1055,11 @@ document.getElementById("btnRegister").addEventListener("click", function(e) {
     fetchWorldRankings(function(data) { worldRankings = data; });
   });
   showRankingUI(name);
+}
+
+document.getElementById("btnRegister").addEventListener("click", function(e) {
+  e.stopPropagation();
+  doRegister();
 });
 
 document.getElementById("tabLocal").addEventListener("click", function(e) {
@@ -1079,11 +1087,13 @@ document.getElementById("rankRestartBtn").addEventListener("click", function(e) 
   gameState = "TITLE";
 });
 
-// Tapping outside the panel skips to ranking
+// Tapping outside the panel: input phase → register, ranking phase → restart
 document.getElementById("gameOverUI").addEventListener("touchstart", function(e) {
   e.stopPropagation();
   if (e.target === this) {
-    if (gameOverPhase === "ranking") {
+    if (gameOverPhase === "input") {
+      doRegister();
+    } else if (gameOverPhase === "ranking") {
       hideGameOverUI();
       gameState = "TITLE";
     }
@@ -1092,7 +1102,9 @@ document.getElementById("gameOverUI").addEventListener("touchstart", function(e)
 document.getElementById("gameOverUI").addEventListener("mousedown", function(e) {
   e.stopPropagation();
   if (e.target === this) {
-    if (gameOverPhase === "ranking") {
+    if (gameOverPhase === "input") {
+      doRegister();
+    } else if (gameOverPhase === "ranking") {
       hideGameOverUI();
       gameState = "TITLE";
     }
