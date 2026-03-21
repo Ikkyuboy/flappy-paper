@@ -228,6 +228,10 @@ function generateObstacles() {
           thick: true
         });
       }
+      // After last thick segment, push Y forward so next obstacle doesn't overlap
+      if (posInTheme === POINTS_PER_THEME) {
+        lastObstacleY += segH;
+      }
     } else {
       var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
 
