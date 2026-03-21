@@ -475,7 +475,11 @@ function getTouchSide(x) {
 
 function handleKeyDown(e) {
   if (e.repeat) return;
-  if (gameOverPhase) return; // UI is active, don't process game input
+  if (gameOverPhase) {
+    input.anyPress = true;
+    e.preventDefault();
+    return;
+  }
   if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") tapQueue.push("left");
   if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") tapQueue.push("right");
   input.anyPress = true;
@@ -656,9 +660,14 @@ function updateGameOver(dt) {
   if (gameOverPhase === "" && performance.now() - gameOverTime > GAME_OVER_DELAY) {
     showGameOverUI();
   }
-  // In ranking phase, restart on any canvas tap
-  if (gameOverPhase === "ranking" && input.anyPress) {
-    // handled by restart button instead
+  // Any press skips current phase
+  if (input.anyPress) {
+    if (gameOverPhase === "input") {
+      showRankingUI("");
+    } else if (gameOverPhase === "ranking") {
+      hideGameOverUI();
+      gameState = "TITLE";
+    }
   }
   input.anyPress = false;
 }
