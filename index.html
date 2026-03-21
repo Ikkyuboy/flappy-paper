@@ -8,10 +8,99 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #2a2a2a; }
     #gameCanvas { display: block; margin: 0 auto; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    #gameOverUI {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 10; pointer-events: none;
+    }
+    #gameOverUI.active { display: flex; justify-content: center; align-items: center; }
+    #gameOverPanel {
+      pointer-events: auto; width: 320px; max-width: 90vw;
+      background: rgba(20,18,15,0.92); border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px; padding: 24px 20px; color: #fff;
+      font-family: 'Courier New', monospace; text-align: center;
+    }
+    #gameOverPanel h2 { font-size: 28px; margin-bottom: 8px; letter-spacing: 2px; }
+    #gameOverPanel .go-score { font-size: 48px; font-weight: bold; margin: 4px 0; }
+    #gameOverPanel .go-highscore { font-size: 14px; color: #CCBBAA; margin-bottom: 4px; }
+    #gameOverPanel .go-newrecord { font-size: 14px; color: #FFCC44; font-weight: bold; margin-bottom: 8px; }
+    #gameOverPanel .go-section { margin-top: 16px; }
+    #gameOverPanel .go-label { font-size: 12px; color: #CCBBAA; margin-bottom: 6px; }
+    #nameInput {
+      width: 100%; padding: 8px 10px; font-size: 16px; font-family: 'Courier New', monospace;
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 6px; color: #fff; text-align: center; outline: none;
+    }
+    #nameInput:focus { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.15); }
+    #nameInput::placeholder { color: rgba(255,255,255,0.3); }
+    .go-buttons { display: flex; gap: 10px; margin-top: 12px; }
+    .go-btn {
+      flex: 1; padding: 10px 0; font-size: 14px; font-family: 'Courier New', monospace;
+      font-weight: bold; border: none; border-radius: 6px; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .go-btn:active { opacity: 0.7; }
+    #btnRegister { background: #E8E0D8; color: #1A1410; }
+    #btnSkip { background: rgba(255,255,255,0.15); color: #CCBBAA; }
+    /* Ranking */
+    #rankingPanel {
+      display: none; pointer-events: auto; width: 340px; max-width: 90vw;
+      background: rgba(20,18,15,0.95); border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px; padding: 20px 16px; color: #fff;
+      font-family: 'Courier New', monospace; text-align: center;
+    }
+    #rankingPanel.active { display: block; }
+    .rank-tabs { display: flex; gap: 0; margin-bottom: 12px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
+    .rank-tab {
+      flex: 1; padding: 8px 0; font-size: 13px; font-family: 'Courier New', monospace;
+      font-weight: bold; border: none; cursor: pointer;
+      background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4);
+      transition: all 0.2s;
+    }
+    .rank-tab.active { background: rgba(255,255,255,0.15); color: #fff; }
+    .rank-list { max-height: 45vh; overflow-y: auto; }
+    .rank-row {
+      display: flex; align-items: center; padding: 6px 8px; font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .rank-row.self { background: rgba(255,204,68,0.1); }
+    .rank-pos { width: 28px; text-align: right; margin-right: 10px; color: #CCBBAA; font-weight: bold; }
+    .rank-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-score { width: 50px; text-align: right; font-weight: bold; }
+    .rank-empty { color: rgba(255,255,255,0.3); padding: 20px 0; font-size: 13px; }
+    #rankRestartBtn {
+      margin-top: 14px; width: 100%; padding: 10px 0; font-size: 14px;
+      font-family: 'Courier New', monospace; font-weight: bold;
+      background: #E8E0D8; color: #1A1410; border: none; border-radius: 6px; cursor: pointer;
+    }
+    #rankRestartBtn:active { opacity: 0.7; }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
+  <div id="gameOverUI">
+    <div id="gameOverPanel">
+      <h2>GAME OVER</h2>
+      <div class="go-score" id="goScore">000</div>
+      <div class="go-highscore" id="goHighScore">HIGH SCORE 000</div>
+      <div class="go-newrecord" id="goNewRecord" style="display:none">NEW RECORD!</div>
+      <div class="go-section">
+        <div class="go-label">NAME (max 8 chars)</div>
+        <input type="text" id="nameInput" maxlength="8" placeholder="Enter name..." autocomplete="off">
+      </div>
+      <div class="go-buttons">
+        <button class="go-btn" id="btnRegister">REGISTER</button>
+        <button class="go-btn" id="btnSkip">SKIP</button>
+      </div>
+    </div>
+    <div id="rankingPanel">
+      <div class="rank-tabs">
+        <button class="rank-tab active" id="tabLocal">LOCAL</button>
+        <button class="rank-tab" id="tabWorld">WORLD</button>
+      </div>
+      <div class="rank-list" id="rankList"></div>
+      <button id="rankRestartBtn">TAP TO RESTART</button>
+    </div>
+  </div>
   <script>
 // ============================================================
 // 紙ヒコーキ (Kami Hikouki) - Paper Airplane Chase
@@ -67,6 +156,98 @@ let score = 0;
 let highScore = parseInt(localStorage.getItem("kamiHikouki_highScore")) || 0;
 let gameOverTime = 0;
 let titleAnimTime = 0;
+let gameOverPhase = ""; // "input", "ranking", ""
+
+// === RANKING ===
+const MAX_RANKINGS = 20;
+let localRankings = JSON.parse(localStorage.getItem("kamiHikouki_localRankings") || "[]");
+let worldRankings = []; // populated by Cloudflare backend later
+let currentRankTab = "local";
+let lastRegisteredName = "";
+
+function saveLocalRankings() {
+  localStorage.setItem("kamiHikouki_localRankings", JSON.stringify(localRankings));
+}
+
+function addLocalRanking(name, s) {
+  localRankings.push({ name: name, score: s, date: Date.now() });
+  localRankings.sort(function(a, b) { return b.score - a.score; });
+  if (localRankings.length > MAX_RANKINGS) localRankings.length = MAX_RANKINGS;
+  saveLocalRankings();
+}
+
+// World Ranking stubs - replace with Cloudflare Workers calls
+function fetchWorldRankings(callback) {
+  // TODO: fetch from Cloudflare Workers API
+  callback([]);
+}
+
+function submitWorldRanking(name, s, callback) {
+  // TODO: POST to Cloudflare Workers API
+  if (callback) callback(false);
+}
+
+function showGameOverUI() {
+  var panel = document.getElementById("gameOverUI");
+  var goPanel = document.getElementById("gameOverPanel");
+  var rankPanel = document.getElementById("rankingPanel");
+  panel.classList.add("active");
+  goPanel.style.display = "block";
+  rankPanel.classList.remove("active");
+  document.getElementById("goScore").textContent = padScore(score, 3);
+  document.getElementById("goHighScore").textContent = "HIGH SCORE " + padScore(highScore, 3);
+  var nr = document.getElementById("goNewRecord");
+  nr.style.display = (score >= highScore && score > 0) ? "block" : "none";
+  var inp = document.getElementById("nameInput");
+  inp.value = lastRegisteredName;
+  inp.blur();
+  gameOverPhase = "input";
+}
+
+function hideGameOverUI() {
+  var panel = document.getElementById("gameOverUI");
+  panel.classList.remove("active");
+  document.getElementById("gameOverPanel").style.display = "none";
+  document.getElementById("rankingPanel").classList.remove("active");
+  gameOverPhase = "";
+}
+
+function showRankingUI(highlightName) {
+  document.getElementById("gameOverPanel").style.display = "none";
+  var rankPanel = document.getElementById("rankingPanel");
+  rankPanel.classList.add("active");
+  gameOverPhase = "ranking";
+  currentRankTab = "local";
+  document.getElementById("tabLocal").classList.add("active");
+  document.getElementById("tabWorld").classList.remove("active");
+  renderRankList(highlightName);
+}
+
+function renderRankList(highlightName) {
+  var list = document.getElementById("rankList");
+  var data = currentRankTab === "local" ? localRankings : worldRankings;
+  if (data.length === 0) {
+    list.innerHTML = '<div class="rank-empty">' +
+      (currentRankTab === "world" ? "COMING SOON" : "NO DATA") + '</div>';
+    return;
+  }
+  var html = "";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    var isSelf = highlightName && r.name === highlightName && r.score === score;
+    html += '<div class="rank-row' + (isSelf ? ' self' : '') + '">' +
+      '<span class="rank-pos">' + (i + 1) + '.</span>' +
+      '<span class="rank-name">' + escapeHtml(r.name) + '</span>' +
+      '<span class="rank-score">' + padScore(r.score, 3) + '</span></div>';
+  }
+  list.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  var d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
 
 function getCurrentTheme() {
   return THEMES[Math.floor(score / POINTS_PER_THEME) % THEMES.length];
@@ -296,6 +477,7 @@ function getTouchSide(x) {
 
 function handleKeyDown(e) {
   if (e.repeat) return;
+  if (gameOverPhase) return; // UI is active, don't process game input
   if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") tapQueue.push("left");
   if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") tapQueue.push("right");
   input.anyPress = true;
@@ -388,6 +570,8 @@ function startGame() {
   gameState = "PLAYING";
   score = 0;
   tapQueue = [];
+  gameOverPhase = "";
+  hideGameOverUI();
   resetPlayer();
   resetObstacles();
   particles = [];
@@ -470,10 +654,15 @@ function updateGameOver(dt) {
     player.deathAngle += 0.15 * dt;
   }
   updateParticles(dt);
-  if (input.anyPress && performance.now() - gameOverTime > GAME_OVER_DELAY) {
-    gameState = "TITLE";
-    input.anyPress = false;
+  // Show game over UI after death animation delay
+  if (gameOverPhase === "" && performance.now() - gameOverTime > GAME_OVER_DELAY) {
+    showGameOverUI();
   }
+  // In ranking phase, restart on any canvas tap
+  if (gameOverPhase === "ranking" && input.anyPress) {
+    // handled by restart button instead
+  }
+  input.anyPress = false;
 }
 
 function updateTitle(dt) {
@@ -610,24 +799,56 @@ function drawPlane() {
     ctx.rotate(player.angleDeg * Math.PI / 180);
   }
 
-  ctx.strokeStyle = "#FFFFFF";
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
+  // Paper airplane shape - elongated with folded wings
+  // Right wing (lighter - catching light)
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.beginPath();
-  ctx.moveTo(-10, -8);
-  ctx.lineTo(0, 4);
-  ctx.lineTo(10, -8);
-  ctx.stroke();
-
-  ctx.fillStyle = "rgba(255,255,255,0.3)";
-  ctx.beginPath();
-  ctx.moveTo(-10, -8);
-  ctx.lineTo(0, 4);
-  ctx.lineTo(10, -8);
+  ctx.moveTo(0, -12);      // nose tip
+  ctx.lineTo(10, 6);       // right wing tip
+  ctx.lineTo(0, 2);        // center fold bottom
   ctx.closePath();
   ctx.fill();
+
+  // Left wing (slightly darker - shadow side)
+  ctx.fillStyle = "rgba(220,220,230,0.85)";
+  ctx.beginPath();
+  ctx.moveTo(0, -12);      // nose tip
+  ctx.lineTo(-10, 6);      // left wing tip
+  ctx.lineTo(0, 2);        // center fold bottom
+  ctx.closePath();
+  ctx.fill();
+
+  // Center fold line
+  ctx.strokeStyle = "rgba(180,180,190,0.7)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -12);
+  ctx.lineTo(0, 2);
+  ctx.stroke();
+
+  // Wing fold lines
+  ctx.strokeStyle = "rgba(160,160,170,0.4)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(6, 4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(-6, 4);
+  ctx.stroke();
+
+  // Outline
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, -12);
+  ctx.lineTo(10, 6);
+  ctx.lineTo(0, 2);
+  ctx.lineTo(-10, 6);
+  ctx.closePath();
+  ctx.stroke();
 
   ctx.restore();
 }
@@ -728,42 +949,6 @@ function drawTitleScreen() {
 function drawGameOverScreen() {
   ctx.fillStyle = "rgba(0,0,0,0.5)";
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-  ctx.textAlign = "center";
-
-  ctx.font = "bold 32px 'Courier New', monospace";
-  ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fillText("GAME OVER", canvasWidth / 2 + 2, canvasHeight * 0.35 + 2);
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText("GAME OVER", canvasWidth / 2, canvasHeight * 0.35);
-
-  ctx.font = "14px 'Courier New', monospace";
-  ctx.fillStyle = "#CCBBAA";
-  ctx.fillText("SCORE", canvasWidth / 2, canvasHeight * 0.42);
-
-  ctx.font = "bold 48px 'Courier New', monospace";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(padScore(score, 3), canvasWidth / 2, canvasHeight * 0.52);
-
-  ctx.font = "bold 16px 'Courier New', monospace";
-  ctx.fillStyle = "#CCBBAA";
-  ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth / 2, canvasHeight * 0.60);
-
-  if (score >= highScore && score > 0) {
-    ctx.font = "bold 16px 'Courier New', monospace";
-    ctx.fillStyle = "#FFCC44";
-    ctx.fillText("NEW RECORD!", canvasWidth / 2, canvasHeight * 0.66);
-  }
-
-  var canRestart = performance.now() - gameOverTime > GAME_OVER_DELAY;
-  if (canRestart) {
-    var blink = Math.sin(performance.now() / 500) > 0;
-    if (blink) {
-      ctx.font = "14px 'Courier New', monospace";
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillText("TAP or PRESS ANY KEY", canvasWidth / 2, canvasHeight * 0.76);
-    }
-  }
 }
 
 function renderPlaying() {
@@ -809,6 +994,60 @@ function gameLoop(timestamp) {
   input.anyPress = false;
   requestAnimationFrame(gameLoop);
 }
+
+// === RANKING UI EVENT LISTENERS ===
+document.getElementById("btnRegister").addEventListener("click", function(e) {
+  e.stopPropagation();
+  var name = document.getElementById("nameInput").value.trim();
+  if (!name) {
+    document.getElementById("nameInput").focus();
+    return;
+  }
+  lastRegisteredName = name;
+  addLocalRanking(name, score);
+  submitWorldRanking(name, score, function() {
+    fetchWorldRankings(function(data) { worldRankings = data; });
+  });
+  showRankingUI(name);
+});
+
+document.getElementById("btnSkip").addEventListener("click", function(e) {
+  e.stopPropagation();
+  showRankingUI("");
+});
+
+document.getElementById("tabLocal").addEventListener("click", function(e) {
+  e.stopPropagation();
+  currentRankTab = "local";
+  document.getElementById("tabLocal").classList.add("active");
+  document.getElementById("tabWorld").classList.remove("active");
+  renderRankList(lastRegisteredName);
+});
+
+document.getElementById("tabWorld").addEventListener("click", function(e) {
+  e.stopPropagation();
+  currentRankTab = "world";
+  document.getElementById("tabWorld").classList.add("active");
+  document.getElementById("tabLocal").classList.remove("active");
+  fetchWorldRankings(function(data) {
+    worldRankings = data;
+    renderRankList(lastRegisteredName);
+  });
+});
+
+document.getElementById("rankRestartBtn").addEventListener("click", function(e) {
+  e.stopPropagation();
+  hideGameOverUI();
+  gameState = "TITLE";
+});
+
+// Prevent game over UI interactions from triggering game input
+document.getElementById("gameOverUI").addEventListener("touchstart", function(e) {
+  e.stopPropagation();
+}, { passive: false });
+document.getElementById("gameOverUI").addEventListener("mousedown", function(e) {
+  e.stopPropagation();
+});
 
 // === INIT ===
 requestAnimationFrame(function(ts) {
