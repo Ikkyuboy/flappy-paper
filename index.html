@@ -174,12 +174,14 @@ let obstacles = [];
 let lastObstacleY = 0;
 let obstacleGroupId = 0;
 let lastSingleSide = "left";
+let thickZoneGapCenter = 0; // shared gap center for all 5 segments
 
 function resetObstacles() {
   obstacles = [];
   lastObstacleY = 250;
   obstacleGroupId = 0;
   lastSingleSide = "left";
+  thickZoneGapCenter = 0;
 }
 
 function generateObstacles() {
@@ -197,9 +199,12 @@ function generateObstacles() {
                       && obstacleGroupId > THICK_OBS_POINTS;
 
     if (inThickZone) {
-      // Gap position: center ± random 30 units (in 200-scale)
-      var offsetUnits = (Math.random() * 60 - 30); // -30 to +30
-      var gapCenterPx = towerWidth / 2 + offsetUnits * (towerWidth / 200);
+      // First segment: randomize gap position, then reuse for all 5
+      if (posInTheme === POINTS_PER_THEME - THICK_OBS_POINTS + 1) {
+        var offsetUnits = (Math.random() * 60 - 30); // -30 to +30
+        thickZoneGapCenter = towerWidth / 2 + offsetUnits * (towerWidth / 200);
+      }
+      var gapCenterPx = thickZoneGapCenter;
       var gapHalfPx = towerWidth * THICK_OBS_GAP_RATIO / 2;
       var gapLeft = gapCenterPx - gapHalfPx;
       var gapRight = gapCenterPx + gapHalfPx;
@@ -545,50 +550,31 @@ function drawPlatforms() {
     if (screenY > canvasHeight + 20 || screenY + o.height < -20) continue;
 
     if (o.thick) {
-      // Thick obstacle: draw as brick wall extension
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(o.x, screenY, o.width, o.height);
-      ctx.clip();
-      ctx.fillStyle = brickPattern;
-      ctx.save();
-      ctx.translate(-towerLeft, 0);
+      // Thick obstacle: white wall
+      ctx.fillStyle = "#E8E0D8";
       ctx.fillRect(o.x, screenY, o.width, o.height);
-      ctx.restore();
-      ctx.restore();
 
-      // Edge highlight on the gap side
+      // Edge line on the gap side
       var edgeX = (o.side === "left") ? o.x + o.width : o.x;
-      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.fillStyle = "#BBBBBB";
       ctx.fillRect(edgeX - 1, screenY, 2, o.height);
-      ctx.fillStyle = "rgba(0,0,0,0.3)";
-      ctx.fillRect(edgeX, screenY, 1, o.height);
     } else {
-      // Normal obstacle: dark structural beam style
-      // Shadow
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      // Normal obstacle: white beam style
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.fillRect(o.x + 2, screenY + 2, o.width, o.height);
 
-      // Main fill - dark gray/brown
-      ctx.fillStyle = "#5A5048";
+      ctx.fillStyle = "#E8E0D8";
       ctx.fillRect(o.x, screenY, o.width, o.height);
 
-      // Top highlight
-      ctx.fillStyle = "#8A7E72";
+      ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(o.x, screenY, o.width, 2);
 
-      // Bottom dark edge
-      ctx.fillStyle = "#2A2420";
-      ctx.fillRect(o.x, screenY + o.height - 2, o.width, 2);
-
-      // Border
-      ctx.strokeStyle = "#1A1410";
+      ctx.strokeStyle = "#333333";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(o.x, screenY, o.width, o.height);
 
-      // Inner highlight for depth
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
-      ctx.fillRect(o.x + 2, screenY + 2, o.width - 4, Math.max(0, o.height - 4));
+      ctx.fillStyle = "rgba(0,0,0,0.1)";
+      ctx.fillRect(o.x, screenY + o.height - 2, o.width, 2);
     }
   }
 
