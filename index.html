@@ -1037,14 +1037,24 @@ document.getElementById("rankRestartBtn").addEventListener("click", function(e) 
 // Tapping outside the panel skips to ranking
 document.getElementById("gameOverUI").addEventListener("touchstart", function(e) {
   e.stopPropagation();
-  if (gameOverPhase === "input" && e.target === this) {
-    showRankingUI("");
+  if (e.target === this) {
+    if (gameOverPhase === "input") {
+      showRankingUI("");
+    } else if (gameOverPhase === "ranking") {
+      hideGameOverUI();
+      gameState = "TITLE";
+    }
   }
 }, { passive: false });
 document.getElementById("gameOverUI").addEventListener("mousedown", function(e) {
   e.stopPropagation();
-  if (gameOverPhase === "input" && e.target === this) {
-    showRankingUI("");
+  if (e.target === this) {
+    if (gameOverPhase === "input") {
+      showRankingUI("");
+    } else if (gameOverPhase === "ranking") {
+      hideGameOverUI();
+      gameState = "TITLE";
+    }
   }
 });
 
