@@ -359,9 +359,10 @@ function triggerFaceDisplay() {
   }
   lastFaceIdx = idx;
   activeFaceIdx = idx;
-  // Pick a window row near the player's current position
-  var playerRow = Math.floor(player.y / WINDOW_INTERVAL) + 2;
-  activeFaceRow = playerRow;
+  // Pick a window row just off-screen (below visible area) so it doesn't pop in
+  var screenBottom = camera.y + canvasHeight;
+  var offScreenRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 1;
+  activeFaceRow = offScreenRow;
 }
 
 function resetFaceState() {

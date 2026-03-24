@@ -69,7 +69,9 @@ function triggerFaceDisplay() {
   }
   lastFaceIdx = idx;
   activeFaceIdx = idx;
-  activeFaceRow = Math.floor(player.y / WINDOW_INTERVAL) + 2;
+  // Place face just off-screen (below visible area) so it doesn't pop in
+  const screenBottom = camera.y + canvasHeight;
+  activeFaceRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 1;
 }
 
 function resetFaceState() {
