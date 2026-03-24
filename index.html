@@ -4,10 +4,1165 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>紙ヒコーキ - Kami Hikouki</title>
-  <link rel="stylesheet" href="style.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #2a2a2a; }
+    #gameCanvas { display: block; margin: 0 auto; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    #gameOverUI {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 10; pointer-events: none;
+    }
+    #gameOverUI.active { display: flex; justify-content: center; align-items: center; pointer-events: auto; }
+    #gameOverPanel {
+      pointer-events: auto; width: 320px; max-width: 90vw;
+      background: rgba(20,18,15,0.92); border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px; padding: 24px 20px; color: #fff;
+      font-family: 'Courier New', monospace; text-align: center;
+    }
+    #gameOverPanel h2 { font-size: 28px; margin-bottom: 8px; letter-spacing: 2px; }
+    #gameOverPanel .go-score { font-size: 48px; font-weight: bold; margin: 4px 0; }
+    #gameOverPanel .go-highscore { font-size: 14px; color: #CCBBAA; margin-bottom: 4px; }
+    #gameOverPanel .go-newrecord { font-size: 14px; color: #FFCC44; font-weight: bold; margin-bottom: 8px; }
+    #gameOverPanel .go-section { margin-top: 16px; }
+    #gameOverPanel .go-label { font-size: 12px; color: #CCBBAA; margin-bottom: 6px; }
+    #nameInput {
+      width: 100%; padding: 8px 10px; font-size: 16px; font-family: 'Courier New', monospace;
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 6px; color: #fff; text-align: center; outline: none;
+    }
+    #nameInput:focus { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.15); }
+    #nameInput::placeholder { color: rgba(255,255,255,0.3); }
+    .go-buttons { display: flex; gap: 10px; margin-top: 12px; }
+    .go-btn {
+      flex: 1; padding: 10px 0; font-size: 14px; font-family: 'Courier New', monospace;
+      font-weight: bold; border: none; border-radius: 6px; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .go-btn:active { opacity: 0.7; }
+    #btnRegister { background: #E8E0D8; color: #1A1410; }
+    /* Ranking */
+    #rankingPanel {
+      display: none; pointer-events: auto; width: 340px; max-width: 90vw;
+      background: rgba(20,18,15,0.95); border: 2px solid rgba(255,255,255,0.15);
+      border-radius: 12px; padding: 20px 16px; color: #fff;
+      font-family: 'Courier New', monospace; text-align: center;
+    }
+    #rankingPanel.active { display: block; }
+    .rank-tabs { display: flex; gap: 0; margin-bottom: 12px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
+    .rank-tab {
+      flex: 1; padding: 8px 0; font-size: 13px; font-family: 'Courier New', monospace;
+      font-weight: bold; border: none; cursor: pointer;
+      background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.4);
+      transition: all 0.2s;
+    }
+    .rank-tab.active { background: rgba(255,255,255,0.15); color: #fff; }
+    .rank-list { max-height: 45vh; overflow-y: auto; }
+    .rank-row {
+      display: flex; align-items: center; padding: 6px 8px; font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .rank-row.self { background: rgba(255,204,68,0.1); }
+    .rank-pos { width: 28px; text-align: right; margin-right: 10px; color: #CCBBAA; font-weight: bold; }
+    .rank-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-score { width: 50px; text-align: right; font-weight: bold; }
+    .rank-empty { color: rgba(255,255,255,0.3); padding: 20px 0; font-size: 13px; }
+    #rankRestartBtn {
+      margin-top: 14px; width: 100%; padding: 10px 0; font-size: 14px;
+      font-family: 'Courier New', monospace; font-weight: bold;
+      background: #E8E0D8; color: #1A1410; border: none; border-radius: 6px; cursor: pointer;
+    }
+    #rankRestartBtn:active { opacity: 0.7; }
+  </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
-  <script src="game.js" defer></script>
+  <div id="gameOverUI">
+    <div id="gameOverPanel">
+      <h2>GAME OVER</h2>
+      <div class="go-score" id="goScore">000</div>
+      <div class="go-highscore" id="goHighScore">HIGH SCORE 000</div>
+      <div class="go-newrecord" id="goNewRecord" style="display:none">NEW RECORD!</div>
+      <div class="go-section">
+        <div class="go-label">NAME (max 8 chars)</div>
+        <input type="text" id="nameInput" maxlength="8" placeholder="Enter name..." autocomplete="off">
+      </div>
+      <div class="go-buttons">
+        <button class="go-btn" id="btnRegister">REGISTER</button>
+      </div>
+    </div>
+    <div id="rankingPanel">
+      <div class="rank-tabs">
+        <button class="rank-tab active" id="tabWorld">WORLD</button>
+        <button class="rank-tab" id="tabLocal">LOCAL</button>
+      </div>
+      <div class="rank-list" id="rankList"></div>
+      <button id="rankRestartBtn">TAP TO RESTART</button>
+    </div>
+  </div>
+  <script>
+// ============================================================
+// 紙ヒコーキ (Kami Hikouki) - Paper Airplane Chase
+// ============================================================
+
+// === CONSTANTS ===
+const WALL_THICKNESS = 30;
+const PLATFORM_HEIGHT_BASE = 10;  // starting thickness
+const PLATFORM_HEIGHT_GROW = 8;   // additional height per theme level
+const OBSTACLE_MIN_GAP = 130;
+const OBSTACLE_MAX_GAP = 190;
+const SPAWN_AHEAD = 800;
+const CLEANUP_BEHIND = 400;
+const PLAYER_WIDTH = 22;
+const PLAYER_HEIGHT = 14;
+const GAME_OVER_DELAY = 800;
+const WINDOW_INTERVAL = 300;
+const WINDOW_WIDTH = 110;
+const WINDOW_HEIGHT = 85;
+const POINTS_PER_THEME = 20;
+
+// === MOVEMENT CONSTANTS ===
+const ANGLE_STEP = 20;           // degrees per tap
+const MAX_ANGLE = 80;            // max angle from vertical
+const BASE_SPEED_100 = 95;       // speed at 0° in 100-scale
+const MAX_SPEED_100 = 170;       // max accelerated speed
+const ACCEL_THRESHOLD = 20;      // angle below which acceleration kicks in (degrees)
+const ACCEL_RATE = 0.5;          // acceleration per frame (100-scale)
+const DECEL_RATE = 0.05;         // lerp factor for deceleration
+
+// === OBSTACLE CONSTANTS ===
+const DOUBLE_OBSTACLE_CHANCE = 0.2; // mostly single-side
+const SINGLE_MIN_RATIO = 0.4;      // 80/200
+const SINGLE_MAX_RATIO = 0.515;    // 103/200
+const DOUBLE_GAP_RATIO = 0.15;     // fixed 30/200 gap for double-side
+const SPEED_LEVEL_BONUS = 10;      // speed bonus per theme level
+const THICK_OBS_GAP_RATIO = 0.25;  // 50/200 gap for thick obstacles
+const THICK_OBS_POINTS = 5;        // thick obstacle zone = last 5 points before theme change
+
+// === COLOR THEMES ===
+const THEMES = [
+  { brick: "#7B5B4C", brickLight: "#8E6E5E", mortar: "#4A3530", window: "#4488CC" },
+  { brick: "#8B3030", brickLight: "#A04040", mortar: "#4A1515", window: "#CC4444" },
+  { brick: "#3B6B3B", brickLight: "#4A8A4A", mortar: "#1A3A1A", window: "#44CC66" },
+  { brick: "#3B4B8B", brickLight: "#4A5AA0", mortar: "#1A2550", window: "#4488FF" },
+  { brick: "#6B3B7B", brickLight: "#8A4A9A", mortar: "#3A1A4A", window: "#AA44CC" },
+  { brick: "#8B7B30", brickLight: "#A09040", mortar: "#4A4015", window: "#CCCC44" },
+];
+
+// === STATE ===
+let gameState = "TITLE";
+let score = 0;
+let highScore = parseInt(localStorage.getItem("kamiHikouki_highScore")) || 0;
+let gameOverTime = 0;
+let titleAnimTime = 0;
+let gameOverPhase = ""; // "input", "ranking", ""
+let rankingShownTime = 0;
+
+// === RANKING ===
+const MAX_RANKINGS = 20;
+let localRankings = JSON.parse(localStorage.getItem("kamiHikouki_localRankings") || "[]");
+let worldRankings = []; // populated by Cloudflare backend later
+let currentRankTab = "local";
+let lastRegisteredName = "";
+
+function saveLocalRankings() {
+  localStorage.setItem("kamiHikouki_localRankings", JSON.stringify(localRankings));
+}
+
+function addLocalRanking(name, s) {
+  localRankings.push({ name: name, score: s, date: Date.now() });
+  localRankings.sort(function(a, b) { return b.score - a.score; });
+  if (localRankings.length > MAX_RANKINGS) localRankings.length = MAX_RANKINGS;
+  saveLocalRankings();
+}
+
+// World Ranking stubs - replace with Cloudflare Workers calls
+function fetchWorldRankings(callback) {
+  // TODO: fetch from Cloudflare Workers API
+  callback([]);
+}
+
+function submitWorldRanking(name, s, callback) {
+  // TODO: POST to Cloudflare Workers API
+  if (callback) callback(false);
+}
+
+function showGameOverUI() {
+  var panel = document.getElementById("gameOverUI");
+  var goPanel = document.getElementById("gameOverPanel");
+  var rankPanel = document.getElementById("rankingPanel");
+  panel.classList.add("active");
+  goPanel.style.display = "block";
+  rankPanel.classList.remove("active");
+  document.getElementById("goScore").textContent = padScore(score, 3);
+  document.getElementById("goHighScore").textContent = "HIGH SCORE " + padScore(highScore, 3);
+  var nr = document.getElementById("goNewRecord");
+  nr.style.display = (score >= highScore && score > 0) ? "block" : "none";
+  var inp = document.getElementById("nameInput");
+  inp.value = lastRegisteredName;
+  inp.blur();
+  gameOverPhase = "input";
+}
+
+function hideGameOverUI() {
+  var panel = document.getElementById("gameOverUI");
+  panel.classList.remove("active");
+  document.getElementById("gameOverPanel").style.display = "none";
+  document.getElementById("rankingPanel").classList.remove("active");
+  gameOverPhase = "";
+}
+
+function showRankingUI(highlightName) {
+  document.getElementById("gameOverPanel").style.display = "none";
+  var rankPanel = document.getElementById("rankingPanel");
+  rankPanel.classList.add("active");
+  gameOverPhase = "ranking";
+  rankingShownTime = Date.now();
+  currentRankTab = "world";
+  document.getElementById("tabWorld").classList.add("active");
+  document.getElementById("tabLocal").classList.remove("active");
+  renderRankList(highlightName);
+}
+
+function renderRankList(highlightName) {
+  var list = document.getElementById("rankList");
+  var data = currentRankTab === "local" ? localRankings : worldRankings;
+  if (data.length === 0) {
+    list.innerHTML = '<div class="rank-empty">' +
+      (currentRankTab === "world" ? "COMING SOON" : "NO DATA") + '</div>';
+    return;
+  }
+  var html = "";
+  for (var i = 0; i < data.length; i++) {
+    var r = data[i];
+    var isSelf = highlightName && r.name === highlightName && r.score === score;
+    html += '<div class="rank-row' + (isSelf ? ' self' : '') + '">' +
+      '<span class="rank-pos">' + (i + 1) + '.</span>' +
+      '<span class="rank-name">' + escapeHtml(r.name) + '</span>' +
+      '<span class="rank-score">' + padScore(r.score, 3) + '</span></div>';
+  }
+  list.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  var d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function getCurrentTheme() {
+  return THEMES[Math.floor(score / POINTS_PER_THEME) % THEMES.length];
+}
+
+function getCurrentPlatformHeight() {
+  var level = Math.floor(score / POINTS_PER_THEME);
+  return PLATFORM_HEIGHT_BASE + PLATFORM_HEIGHT_GROW * level;
+}
+
+// === CANVAS SETUP ===
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let canvasWidth, canvasHeight, towerWidth, towerLeft, dpr, speedScale;
+
+function resizeCanvas() {
+  dpr = window.devicePixelRatio || 1;
+  const maxW = 420;
+  const w = Math.min(window.innerWidth, maxW);
+  const h = window.innerHeight;
+
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  canvasWidth = w;
+  canvasHeight = h;
+  towerWidth = canvasWidth - WALL_THICKNESS * 2;
+  towerLeft = WALL_THICKNESS;
+  speedScale = towerWidth / 200 / 60;
+
+  createBrickPattern();
+}
+
+// === BRICK PATTERN ===
+let brickPattern = null;
+let brickPatternThemeIndex = -1;
+
+function createBrickPattern() {
+  const theme = getCurrentTheme();
+  const themeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
+  brickPatternThemeIndex = themeIdx;
+
+  const brickW = 28;
+  const brickH = 14;
+  const mortarW = 2;
+  const patW = brickW + mortarW;
+  const patH = (brickH + mortarW) * 2;
+
+  const offscreen = document.createElement("canvas");
+  offscreen.width = patW;
+  offscreen.height = patH;
+  const octx = offscreen.getContext("2d");
+
+  octx.fillStyle = theme.mortar;
+  octx.fillRect(0, 0, patW, patH);
+
+  octx.fillStyle = theme.brick;
+  octx.fillRect(0, 0, brickW, brickH);
+  octx.fillStyle = theme.brickLight;
+  octx.fillRect(1, 1, brickW - 2, 3);
+
+  const offset = Math.floor(patW / 2);
+  octx.fillStyle = theme.brick;
+  octx.fillRect(-offset, brickH + mortarW, brickW, brickH);
+  octx.fillRect(-offset + patW, brickH + mortarW, brickW, brickH);
+  octx.fillStyle = theme.brickLight;
+  octx.fillRect(-offset + 1, brickH + mortarW + 1, brickW - 2, 3);
+  octx.fillRect(-offset + patW + 1, brickH + mortarW + 1, brickW - 2, 3);
+
+  brickPattern = ctx.createPattern(offscreen, "repeat");
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+// === FACE IMAGES (peeking from windows) ===
+const FACE_CHANCE = 0.05; // ~1 in 20 windows show a face
+const faceImages = [];
+var facesLoaded = 0;
+
+(function loadFaceImages() {
+  for (var i = 1; i <= 5; i++) {
+    var img = new Image();
+    img.onload = function() { facesLoaded++; };
+    img.src = "faces/" + i + ".jpg";
+    faceImages.push(img);
+  }
+})();
+
+// Deterministic pseudo-random based on row index
+function faceRandom(row) {
+  var x = Math.sin(row * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// === PLAYER ===
+let player = {
+  x: 0, y: 0,
+  angleDeg: 0,
+  speed: BASE_SPEED_100,
+  dead: false,
+  deathScale: 1,
+  deathAngle: 0
+};
+
+function resetPlayer() {
+  player.x = towerWidth / 2;
+  player.y = 0;
+  player.angleDeg = 0;
+  player.speed = BASE_SPEED_100;
+  player.dead = false;
+  player.deathScale = 1;
+  player.deathAngle = 0;
+}
+
+// === CAMERA ===
+let camera = { y: 0 };
+
+// === OBSTACLES ===
+let obstacles = [];
+let lastObstacleY = 0;
+let obstacleGroupId = 0;
+let lastSingleSide = "left";
+let thickZoneGapCenter = 0; // shared gap center for all 5 segments
+
+function resetObstacles() {
+  obstacles = [];
+  lastObstacleY = 250;
+  obstacleGroupId = 0;
+  lastSingleSide = "left";
+  thickZoneGapCenter = 0;
+}
+
+function generateObstacles() {
+  var generateTo = camera.y + canvasHeight + SPAWN_AHEAD;
+  var platH = getCurrentPlatformHeight();
+
+  while (lastObstacleY < generateTo) {
+    var gap = OBSTACLE_MIN_GAP + Math.random() * (OBSTACLE_MAX_GAP - OBSTACLE_MIN_GAP);
+    lastObstacleY += gap;
+    obstacleGroupId++;
+
+    // Check if in thick obstacle zone (last 5 points before theme change)
+    var posInTheme = ((obstacleGroupId - 1) % POINTS_PER_THEME) + 1;
+    var inThickZone = posInTheme > POINTS_PER_THEME - THICK_OBS_POINTS
+                      && obstacleGroupId > THICK_OBS_POINTS;
+
+    if (inThickZone) {
+      // First segment: randomize gap position, then reuse for all 5
+      if (posInTheme === POINTS_PER_THEME - THICK_OBS_POINTS + 1) {
+        var offsetUnits = (Math.random() * 60 - 30); // -30 to +30
+        thickZoneGapCenter = towerWidth / 2 + offsetUnits * (towerWidth / 200);
+      }
+      var gapCenterPx = thickZoneGapCenter;
+      var gapHalfPx = towerWidth * THICK_OBS_GAP_RATIO / 2;
+      var gapLeft = gapCenterPx - gapHalfPx;
+      var gapRight = gapCenterPx + gapHalfPx;
+      var segH = OBSTACLE_MAX_GAP + 10; // overlap to prevent gaps
+
+      // Left wall piece
+      if (gapLeft > 0) {
+        obstacles.push({
+          x: 0, y: lastObstacleY,
+          width: gapLeft, height: segH,
+          side: "left", passed: false, groupId: obstacleGroupId,
+          thick: true
+        });
+      }
+      // Right wall piece
+      if (gapRight < towerWidth) {
+        obstacles.push({
+          x: gapRight, y: lastObstacleY,
+          width: towerWidth - gapRight, height: segH,
+          side: "right", passed: false, groupId: obstacleGroupId,
+          thick: true
+        });
+      }
+      // After last thick segment, push Y forward so next obstacle doesn't overlap
+      if (posInTheme === POINTS_PER_THEME) {
+        lastObstacleY += segH;
+      }
+    } else {
+      var isDouble = Math.random() < DOUBLE_OBSTACLE_CHANCE;
+
+      if (isDouble) {
+        // Double-side obstacle
+        var gapPx = towerWidth * DOUBLE_GAP_RATIO;
+        if (score > 60) {
+          // Gap centered within 15 units of center (in 200-scale)
+          var centerOffset = (Math.random() * 30 - 15) * (towerWidth / 200);
+          var gapCenter = towerWidth / 2 + centerOffset;
+          var leftW = gapCenter - gapPx / 2;
+          var rightW = towerWidth - (gapCenter + gapPx / 2);
+          if (leftW < 0) leftW = 0;
+          if (rightW < 0) rightW = 0;
+        } else {
+          var usable = towerWidth - gapPx;
+          var leftFrac = 0.3 + Math.random() * 0.4;
+          var leftW = usable * leftFrac;
+          var rightW = usable - leftW;
+        }
+
+        obstacles.push({
+          x: 0, y: lastObstacleY,
+          width: leftW, height: platH,
+          side: "left", passed: false, groupId: obstacleGroupId
+        });
+        obstacles.push({
+          x: towerWidth - rightW, y: lastObstacleY,
+          width: rightW, height: platH,
+          side: "right", passed: false, groupId: obstacleGroupId
+        });
+      } else {
+        // Single-side: one wall, alternating left/right
+        lastSingleSide = (lastSingleSide === "left") ? "right" : "left";
+        var side = lastSingleSide;
+        var maxRatio = score > 60 ? 0.495 : SINGLE_MAX_RATIO; // 99/200 cap after score 60
+        var platRatio = SINGLE_MIN_RATIO + Math.random() * (maxRatio - SINGLE_MIN_RATIO);
+        var platWidth = towerWidth * platRatio;
+
+        obstacles.push({
+          x: side === "left" ? 0 : towerWidth - platWidth,
+          y: lastObstacleY,
+          width: platWidth, height: platH,
+          side: side, passed: false, groupId: obstacleGroupId
+        });
+      }
+    }
+  }
+}
+
+function cleanupObstacles() {
+  obstacles = obstacles.filter(o => o.y > camera.y - CLEANUP_BEHIND);
+}
+
+// === INPUT ===
+const input = { anyPress: false };
+let tapQueue = [];
+
+function getTouchSide(x) {
+  return x < canvasWidth / 2 ? "left" : "right";
+}
+
+function handleKeyDown(e) {
+  if (e.repeat) return;
+  if (gameOverPhase === "input") {
+    // If typing in name input, let keys through; otherwise skip = register
+    if (document.activeElement === document.getElementById("nameInput")) return;
+    doRegister();
+    e.preventDefault();
+    return;
+  }
+  if (gameOverPhase) {
+    input.anyPress = true;
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") tapQueue.push("left");
+  if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") tapQueue.push("right");
+  input.anyPress = true;
+  e.preventDefault();
+}
+
+window.addEventListener("keydown", handleKeyDown);
+
+canvas.addEventListener("touchstart", function(e) {
+  e.preventDefault();
+  if (gameOverPhase === "input") return;
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var touch = e.changedTouches[i];
+    var rect = canvas.getBoundingClientRect();
+    tapQueue.push(getTouchSide(touch.clientX - rect.left));
+  }
+  input.anyPress = true;
+}, { passive: false });
+
+canvas.addEventListener("touchend", function(e) {
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("mousedown", function(e) {
+  if (gameOverPhase === "input") return;
+  var rect = canvas.getBoundingClientRect();
+  tapQueue.push(getTouchSide(e.clientX - rect.left));
+  input.anyPress = true;
+});
+
+// === COLLISION ===
+function checkCollision() {
+  var px = player.x;
+  var py = player.y;
+  var hw = PLAYER_WIDTH / 2;
+  var hh = PLAYER_HEIGHT / 2;
+
+  if (px - hw < 0 || px + hw > towerWidth) return true;
+
+  for (var i = 0; i < obstacles.length; i++) {
+    var o = obstacles[i];
+    if (px + hw > o.x && px - hw < o.x + o.width &&
+        py + hh > o.y && py - hh < o.y + o.height) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// === PARTICLES ===
+let particles = [];
+
+function spawnDeathParticles() {
+  for (let i = 0; i < 12; i++) {
+    particles.push({
+      x: player.x, y: player.y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4 - 1,
+      life: 1.0,
+      size: 2 + Math.random() * 4,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.3
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    var p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 0.05 * dt;
+    p.rotation += p.rotSpeed * dt;
+    p.life -= 0.015 * dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// === UTILITIES ===
+function lerp(a, b, t) { return a + (b - a) * t; }
+function padScore(n, len) { return String(n).padStart(len, "0"); }
+
+function lightenColor(hex, amount) {
+  var r = Math.min(255, parseInt(hex.slice(1, 3), 16) + amount);
+  var g = Math.min(255, parseInt(hex.slice(3, 5), 16) + amount);
+  var b = Math.min(255, parseInt(hex.slice(5, 7), 16) + amount);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
+// === GAME LOGIC ===
+function startGame() {
+  gameState = "PLAYING";
+  score = 0;
+  tapQueue = [];
+  gameOverPhase = "";
+  hideGameOverUI();
+  resetPlayer();
+  resetObstacles();
+  particles = [];
+  camera.y = player.y - canvasHeight * 0.33;
+  createBrickPattern();
+  generateObstacles();
+}
+
+function updatePlaying(dt) {
+  // 1. Process taps → rotate by ANGLE_STEP
+  while (tapQueue.length > 0) {
+    var tap = tapQueue.shift();
+    if (tap === "right") player.angleDeg = Math.min(MAX_ANGLE, player.angleDeg + ANGLE_STEP);
+    if (tap === "left") player.angleDeg = Math.max(-MAX_ANGLE, player.angleDeg - ANGLE_STEP);
+  }
+
+  // 2. Compute speed based on angle (with theme-level bonus)
+  var absAngle = Math.abs(player.angleDeg);
+  var speedBonus = SPEED_LEVEL_BONUS * Math.floor(score / POINTS_PER_THEME);
+  var targetSpeed = (BASE_SPEED_100 + speedBonus) - absAngle / 2;
+
+  if (absAngle <= ACCEL_THRESHOLD) {
+    // Near-vertical: accelerate toward max speed
+    var accelFactor = 1 - absAngle / ACCEL_THRESHOLD;
+    player.speed = Math.min(MAX_SPEED_100 + speedBonus, player.speed + ACCEL_RATE * accelFactor * dt);
+  } else {
+    // At higher angles: decelerate toward target speed
+    player.speed = lerp(player.speed, targetSpeed, DECEL_RATE * dt);
+  }
+
+  // 3. Convert angle + speed to velocity
+  var angleRad = player.angleDeg * Math.PI / 180;
+  var pxSpeed = player.speed * speedScale * dt;
+  var vx = pxSpeed * Math.sin(angleRad);
+  var vy = pxSpeed * Math.cos(angleRad);
+
+  // 4. Move player
+  player.x += vx;
+  player.y += vy;
+
+  // 5. Camera
+  var targetCamY = player.y - canvasHeight * 0.33;
+  camera.y = lerp(camera.y, targetCamY, 0.06 * dt);
+
+  // 6. Score: count obstacle groups passed
+  var scoredGroups = {};
+  for (var i = 0; i < obstacles.length; i++) {
+    var o = obstacles[i];
+    if (!o.passed && player.y > o.y + o.height) {
+      o.passed = true;
+      if (!scoredGroups[o.groupId]) {
+        scoredGroups[o.groupId] = true;
+        score++;
+      }
+    }
+  }
+
+  var newThemeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
+  if (newThemeIdx !== brickPatternThemeIndex) createBrickPattern();
+
+  generateObstacles();
+  cleanupObstacles();
+
+  if (checkCollision()) {
+    gameState = "GAME_OVER";
+    gameOverTime = performance.now();
+    player.dead = true;
+    spawnDeathParticles();
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem("kamiHikouki_highScore", highScore);
+    }
+  }
+}
+
+function updateGameOver(dt) {
+  tapQueue = [];
+  if (player.deathScale > 0.1) {
+    player.deathScale = lerp(player.deathScale, 0, 0.04 * dt);
+    player.deathAngle += 0.15 * dt;
+  }
+  updateParticles(dt);
+  // Show game over UI after death animation delay
+  if (gameOverPhase === "" && performance.now() - gameOverTime > GAME_OVER_DELAY) {
+    showGameOverUI();
+  }
+  // Any press skips ranking phase (input phase requires REGISTER button)
+  if (input.anyPress) {
+    if (gameOverPhase === "ranking") {
+      hideGameOverUI();
+      gameState = "TITLE";
+    }
+  }
+  input.anyPress = false;
+}
+
+function updateTitle(dt) {
+  tapQueue = [];
+  titleAnimTime += dt * 0.02;
+  if (input.anyPress) {
+    startGame();
+    input.anyPress = false;
+  }
+}
+
+// === RENDERING ===
+function drawBackground() {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(towerLeft, 0, towerWidth, canvasHeight);
+  ctx.clip();
+  ctx.translate(towerLeft, -(camera.y % 32));
+  ctx.fillStyle = brickPattern;
+  ctx.fillRect(0, -32, towerWidth, canvasHeight + 64);
+  ctx.restore();
+}
+
+function drawWalls() {
+  var lgrd = ctx.createLinearGradient(0, 0, towerLeft, 0);
+  lgrd.addColorStop(0, "#606060");
+  lgrd.addColorStop(0.3, "#909090");
+  lgrd.addColorStop(0.5, "#A8A8A8");
+  lgrd.addColorStop(0.7, "#909090");
+  lgrd.addColorStop(1, "#686868");
+  ctx.fillStyle = lgrd;
+  ctx.fillRect(0, 0, towerLeft, canvasHeight);
+
+  var rgrd = ctx.createLinearGradient(towerLeft + towerWidth, 0, canvasWidth, 0);
+  rgrd.addColorStop(0, "#686868");
+  rgrd.addColorStop(0.3, "#909090");
+  rgrd.addColorStop(0.5, "#A8A8A8");
+  rgrd.addColorStop(0.7, "#909090");
+  rgrd.addColorStop(1, "#606060");
+  ctx.fillStyle = rgrd;
+  ctx.fillRect(towerLeft + towerWidth, 0, WALL_THICKNESS, canvasHeight);
+
+  ctx.fillStyle = "#BBBBBB";
+  ctx.fillRect(towerLeft - 1, 0, 1, canvasHeight);
+  ctx.fillRect(towerLeft + towerWidth, 0, 1, canvasHeight);
+  ctx.fillStyle = "#444444";
+  ctx.fillRect(0, 0, 1, canvasHeight);
+  ctx.fillRect(canvasWidth - 1, 0, 1, canvasHeight);
+}
+
+function drawWindows() {
+  var theme = getCurrentTheme();
+  var startY = Math.floor((camera.y - WINDOW_HEIGHT) / WINDOW_INTERVAL) * WINDOW_INTERVAL;
+
+  for (var wy = startY; wy < camera.y + canvasHeight + WINDOW_HEIGHT; wy += WINDOW_INTERVAL) {
+    var screenY = wy - camera.y;
+    var row = Math.floor(wy / WINDOW_INTERVAL);
+    var wx;
+    if (row % 3 === 0) {
+      wx = towerLeft + towerWidth * 0.15 - WINDOW_WIDTH / 2;
+    } else if (row % 3 === 1) {
+      wx = towerLeft + towerWidth * 0.85 - WINDOW_WIDTH / 2;
+    } else {
+      wx = towerLeft + towerWidth * 0.5 - WINDOW_WIDTH / 2;
+    }
+
+    ctx.fillStyle = theme.mortar;
+    ctx.fillRect(wx - 4, screenY - 4, WINDOW_WIDTH + 8, WINDOW_HEIGHT + 8);
+
+    var wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
+    wgrd.addColorStop(0, theme.window);
+    wgrd.addColorStop(0.3, lightenColor(theme.window, 40));
+    wgrd.addColorStop(1, theme.window);
+    ctx.fillStyle = wgrd;
+    ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    ctx.fillStyle = "rgba(255,255,255,0.25)";
+    ctx.fillRect(wx + 3, screenY + 3, WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.3);
+
+    // face peeking from window
+    var rnd = faceRandom(row);
+    if (rnd < FACE_CHANCE && facesLoaded > 0) {
+      var faceIdx = Math.floor(faceRandom(row + 9999) * faceImages.length) % faceImages.length;
+      var fimg = faceImages[faceIdx];
+      if (fimg.complete && fimg.naturalWidth > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+        ctx.clip();
+        // draw face centered horizontally, peeking from bottom of window
+        var aspect = fimg.naturalWidth / fimg.naturalHeight;
+        var drawH = WINDOW_HEIGHT * 1.4;
+        var drawW = drawH * aspect;
+        if (drawW < WINDOW_WIDTH) { drawW = WINDOW_WIDTH; drawH = drawW / aspect; }
+        var drawX = wx + (WINDOW_WIDTH - drawW) / 2;
+        var drawY = screenY + WINDOW_HEIGHT - drawH + drawH * 0.15;
+        ctx.drawImage(fimg, drawX, drawY, drawW, drawH);
+        ctx.restore();
+      }
+    }
+  }
+}
+
+function drawPlatforms() {
+  ctx.save();
+  ctx.translate(towerLeft, 0);
+
+  for (var i = 0; i < obstacles.length; i++) {
+    var o = obstacles[i];
+    var screenY = o.y - camera.y;
+    if (screenY > canvasHeight + 20 || screenY + o.height < -20) continue;
+
+    if (o.thick) {
+      // Thick obstacle: white wall
+      ctx.fillStyle = "#E8E0D8";
+      ctx.fillRect(o.x, screenY, o.width, o.height);
+
+      // Edge line on the gap side
+      var edgeX = (o.side === "left") ? o.x + o.width : o.x;
+      ctx.fillStyle = "#BBBBBB";
+      ctx.fillRect(edgeX - 1, screenY, 2, o.height);
+    } else {
+      // Normal obstacle: white beam style
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.fillRect(o.x + 2, screenY + 2, o.width, o.height);
+
+      ctx.fillStyle = "#E8E0D8";
+      ctx.fillRect(o.x, screenY, o.width, o.height);
+
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(o.x, screenY, o.width, 2);
+
+      ctx.strokeStyle = "#333333";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(o.x, screenY, o.width, o.height);
+
+      ctx.fillStyle = "rgba(0,0,0,0.1)";
+      ctx.fillRect(o.x, screenY + o.height - 2, o.width, 2);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawPlane() {
+  var screenX = towerLeft + player.x;
+  var screenY = player.y - camera.y;
+
+  ctx.save();
+  ctx.translate(screenX, screenY);
+
+  if (player.dead) {
+    ctx.rotate(player.deathAngle);
+    ctx.scale(player.deathScale, player.deathScale);
+  } else {
+    ctx.rotate(-player.angleDeg * Math.PI / 180);
+  }
+
+  // Paper airplane shape - nose pointing down
+  // Right wing (lighter - catching light)
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);       // nose tip (bottom)
+  ctx.lineTo(10, -6);      // right wing tip (top)
+  ctx.lineTo(0, -2);       // center fold top
+  ctx.closePath();
+  ctx.fill();
+
+  // Left wing (slightly darker - shadow side)
+  ctx.fillStyle = "rgba(220,220,230,0.85)";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);       // nose tip (bottom)
+  ctx.lineTo(-10, -6);     // left wing tip (top)
+  ctx.lineTo(0, -2);       // center fold top
+  ctx.closePath();
+  ctx.fill();
+
+  // Center fold line
+  ctx.strokeStyle = "rgba(180,180,190,0.7)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(0, -2);
+  ctx.stroke();
+
+  // Wing fold lines
+  ctx.strokeStyle = "rgba(160,160,170,0.4)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.lineTo(6, -4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.lineTo(-6, -4);
+  ctx.stroke();
+
+  // Outline
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(10, -6);
+  ctx.lineTo(0, -2);
+  ctx.lineTo(-10, -6);
+  ctx.closePath();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (var i = 0; i < particles.length; i++) {
+    var p = particles[i];
+    var screenX = towerLeft + p.x;
+    var screenY = p.y - camera.y;
+    ctx.save();
+    ctx.translate(screenX, screenY);
+    ctx.rotate(p.rotation);
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawHUD() {
+  ctx.save();
+  ctx.font = "bold 20px 'Courier New', monospace";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText(padScore(score, 3), canvasWidth / 2 + 1, 29);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(padScore(score, 3), canvasWidth / 2, 28);
+
+  ctx.font = "bold 12px 'Courier New', monospace";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth - 9, 17);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth - 10, 16);
+  ctx.restore();
+}
+
+function drawTitleScreen() {
+  ctx.save();
+  ctx.fillStyle = brickPattern;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.restore();
+
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  var floatY = Math.sin(titleAnimTime * 2) * 15;
+  var floatAngle = Math.sin(titleAnimTime * 1.3) * 0.3;
+
+  ctx.save();
+  ctx.translate(canvasWidth / 2, canvasHeight * 0.30 + floatY);
+  ctx.rotate(floatAngle - Math.PI / 3);
+  ctx.scale(3, 3);
+
+  // Right wing (lighter)
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(10, -6);
+  ctx.lineTo(0, -2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Left wing (darker)
+  ctx.fillStyle = "rgba(220,220,230,0.85)";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(-10, -6);
+  ctx.lineTo(0, -2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Center fold line
+  ctx.strokeStyle = "rgba(180,180,190,0.7)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(0, -2);
+  ctx.stroke();
+
+  // Wing fold lines
+  ctx.strokeStyle = "rgba(160,160,170,0.4)";
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.lineTo(6, -4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.lineTo(-6, -4);
+  ctx.stroke();
+
+  // Outline
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 12);
+  ctx.lineTo(10, -6);
+  ctx.lineTo(0, -2);
+  ctx.lineTo(-10, -6);
+  ctx.closePath();
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.textAlign = "center";
+  ctx.font = "bold 36px 'Courier New', monospace";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillText("\u7D19\u30D2\u30B3\u30FC\u30AD", canvasWidth / 2 + 2, canvasHeight * 0.50 + 2);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText("\u7D19\u30D2\u30B3\u30FC\u30AD", canvasWidth / 2, canvasHeight * 0.50);
+
+  ctx.font = "14px 'Courier New', monospace";
+  ctx.fillStyle = "#CCBBAA";
+  ctx.fillText("PAPER AIRPLANE CHASE", canvasWidth / 2, canvasHeight * 0.56);
+
+  var blink = Math.sin(performance.now() / 500) > 0;
+  if (blink) {
+    ctx.font = "14px 'Courier New', monospace";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("TAP or PRESS ANY KEY", canvasWidth / 2, canvasHeight * 0.72);
+  }
+
+  if (highScore > 0) {
+    ctx.font = "bold 14px 'Courier New', monospace";
+    ctx.fillStyle = "#CCBBAA";
+    ctx.fillText("HIGH SCORE " + padScore(highScore, 3), canvasWidth / 2, canvasHeight * 0.80);
+  }
+}
+
+function drawGameOverScreen() {
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+}
+
+function renderPlaying() {
+  drawBackground();
+  drawWindows();
+  drawPlatforms();
+  drawParticles();
+  if (!player.dead || player.deathScale > 0.15) drawPlane();
+  drawWalls();
+  drawHUD();
+}
+
+function renderGameOver() {
+  renderPlaying();
+  drawGameOverScreen();
+}
+
+// === GAME LOOP ===
+var lastTime = 0;
+
+function gameLoop(timestamp) {
+  var rawDt = (timestamp - lastTime) / 16.667;
+  var dt = Math.min(rawDt, 3);
+  lastTime = timestamp;
+
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  switch (gameState) {
+    case "TITLE":
+      updateTitle(dt);
+      drawTitleScreen();
+      break;
+    case "PLAYING":
+      updatePlaying(dt);
+      renderPlaying();
+      break;
+    case "GAME_OVER":
+      updateGameOver(dt);
+      renderGameOver();
+      break;
+  }
+
+  input.anyPress = false;
+  requestAnimationFrame(gameLoop);
+}
+
+// === RANKING UI EVENT LISTENERS ===
+function doRegister() {
+  if (gameOverPhase !== "input") return;
+  var name = document.getElementById("nameInput").value.trim();
+  if (!name) name = "名無し";
+  lastRegisteredName = name;
+  addLocalRanking(name, score);
+  submitWorldRanking(name, score, function() {
+    fetchWorldRankings(function(data) { worldRankings = data; });
+  });
+  showRankingUI(name);
+}
+
+document.getElementById("btnRegister").addEventListener("click", function(e) {
+  e.stopPropagation();
+  doRegister();
+});
+
+document.getElementById("tabLocal").addEventListener("click", function(e) {
+  e.stopPropagation();
+  currentRankTab = "local";
+  document.getElementById("tabLocal").classList.add("active");
+  document.getElementById("tabWorld").classList.remove("active");
+  renderRankList(lastRegisteredName);
+});
+
+document.getElementById("tabWorld").addEventListener("click", function(e) {
+  e.stopPropagation();
+  currentRankTab = "world";
+  document.getElementById("tabWorld").classList.add("active");
+  document.getElementById("tabLocal").classList.remove("active");
+  fetchWorldRankings(function(data) {
+    worldRankings = data;
+    renderRankList(lastRegisteredName);
+  });
+});
+
+document.getElementById("rankRestartBtn").addEventListener("click", function(e) {
+  e.stopPropagation();
+  if (Date.now() - rankingShownTime < 100) return;
+  hideGameOverUI();
+  gameState = "TITLE";
+});
+
+// Tapping outside the panel: input phase → register, ranking phase → restart
+document.getElementById("gameOverUI").addEventListener("touchstart", function(e) {
+  e.stopPropagation();
+  if (e.target === this) {
+    if (gameOverPhase === "input") {
+      doRegister();
+    } else if (gameOverPhase === "ranking") {
+      if (Date.now() - rankingShownTime < 100) return;
+      hideGameOverUI();
+      gameState = "TITLE";
+    }
+  }
+}, { passive: false });
+document.getElementById("gameOverUI").addEventListener("mousedown", function(e) {
+  e.stopPropagation();
+  if (e.target === this) {
+    if (gameOverPhase === "input") {
+      doRegister();
+    } else if (gameOverPhase === "ranking") {
+      if (Date.now() - rankingShownTime < 100) return;
+      hideGameOverUI();
+      gameState = "TITLE";
+    }
+  }
+});
+
+// === INIT ===
+requestAnimationFrame(function(ts) {
+  lastTime = ts;
+  gameLoop(ts);
+});
+  </script>
 </body>
 </html>
