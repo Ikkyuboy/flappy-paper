@@ -778,9 +778,9 @@ function drawWindows() {
     ctx.fillStyle = "rgba(255,255,255,0.25)";
     ctx.fillRect(wx + 3, screenY + 3, WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.3);
 
-    // face peeking from window
+    // face peeking from window (always show after 20 points)
     var rnd = faceRandom(row);
-    if (rnd < FACE_CHANCE && facesLoaded > 0) {
+    if (score >= POINTS_PER_THEME && facesLoaded > 0) {
       var faceIdx = Math.floor(faceRandom(row + 9999) * faceImages.length) % faceImages.length;
       var fimg = faceImages[faceIdx];
       if (fimg.complete && fimg.naturalWidth > 0) {

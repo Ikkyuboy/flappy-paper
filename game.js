@@ -36,6 +36,29 @@ function getCurrentTheme() {
   return THEMES[Math.floor(score / POINTS_PER_THEME) % THEMES.length];
 }
 
+// === FACE IMAGES ===
+const FACE_COUNT = 5;
+const FACE_SCORE_THRESHOLD = 20;
+const faceImages = [];
+let facesLoaded = false;
+
+(function loadFaces() {
+  let loaded = 0;
+  for (let i = 1; i <= FACE_COUNT; i++) {
+    const img = new Image();
+    img.src = `faces/${i}.jpg`;
+    img.onload = () => { loaded++; if (loaded === FACE_COUNT) facesLoaded = true; };
+    faceImages.push(img);
+  }
+})();
+
+// Deterministic face index for a given window row
+function getFaceIndex(row) {
+  // Simple hash to get consistent face per window position
+  const hash = (row * 2654435761) >>> 0;
+  return hash % FACE_COUNT;
+}
+
 // === CANVAS SETUP ===
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -482,13 +505,40 @@ function drawWindows() {
       ctx.fillStyle = theme.mortar;
       ctx.fillRect(wx - 2, screenY - 2, WINDOW_WIDTH + 4, WINDOW_HEIGHT + 4);
 
-      // Window glass
-      const wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
-      wgrd.addColorStop(0, theme.window);
-      wgrd.addColorStop(0.3, lightenColor(theme.window, 40));
-      wgrd.addColorStop(1, theme.window);
-      ctx.fillStyle = wgrd;
-      ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+      // Show face image if score >= threshold, otherwise normal window
+      if (score >= FACE_SCORE_THRESHOLD && facesLoaded) {
+        const faceIdx = getFaceIndex(row);
+        const img = faceImages[faceIdx];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+        ctx.clip();
+        // Draw image to fill window, covering from center
+        const imgAspect = img.width / img.height;
+        const winAspect = WINDOW_WIDTH / WINDOW_HEIGHT;
+        let drawW, drawH, drawX, drawY;
+        if (imgAspect > winAspect) {
+          drawH = WINDOW_HEIGHT;
+          drawW = drawH * imgAspect;
+          drawX = wx + (WINDOW_WIDTH - drawW) / 2;
+          drawY = screenY;
+        } else {
+          drawW = WINDOW_WIDTH;
+          drawH = drawW / imgAspect;
+          drawX = wx;
+          drawY = screenY + (WINDOW_HEIGHT - drawH) / 2;
+        }
+        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+        ctx.restore();
+      } else {
+        // Window glass
+        const wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
+        wgrd.addColorStop(0, theme.window);
+        wgrd.addColorStop(0.3, lightenColor(theme.window, 40));
+        wgrd.addColorStop(1, theme.window);
+        ctx.fillStyle = wgrd;
+        ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+      }
 
       // Window shine
       ctx.fillStyle = "rgba(255,255,255,0.25)";
