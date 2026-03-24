@@ -327,143 +327,17 @@ function createBrickPattern() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-// === FACE SPRITES (peeking from windows) ===
-const FACE_CHANCE = 0.18; // ~18% of windows show a face
-const faceSprites = [];
+// === FACE IMAGES (peeking from windows) ===
+const FACE_CHANCE = 0.05; // ~1 in 20 windows show a face
+const faceImages = [];
+var facesLoaded = 0;
 
-(function generateFaceSprites() {
-  var skinTones = ["#D4A574", "#C8956C", "#E0B896", "#B8845C", "#D4A070"];
-  var hairColors = ["#1A1A1A", "#2A2018", "#1A1A1A", "#2A1A10", "#1A1A1A"];
-
-  for (var i = 0; i < 5; i++) {
-    var fc = document.createElement("canvas");
-    fc.width = 110;
-    fc.height = 85;
-    var fctx = fc.getContext("2d");
-    var skin = skinTones[i];
-    var hair = hairColors[i];
-    var cx = 55;
-
-    // neck / body hint at bottom
-    fctx.fillStyle = skin;
-    fctx.fillRect(cx - 20, 60, 40, 25);
-
-    // face shape
-    fctx.beginPath();
-    fctx.ellipse(cx, 42, 28, 32, 0, 0, Math.PI * 2);
-    fctx.fillStyle = skin;
-    fctx.fill();
-
-    // jaw (stronger for fighter look)
-    fctx.beginPath();
-    fctx.moveTo(cx - 26, 42);
-    fctx.quadraticCurveTo(cx - 22, 72, cx, 74);
-    fctx.quadraticCurveTo(cx + 22, 72, cx + 26, 42);
-    fctx.fill();
-
-    // hair
-    fctx.fillStyle = hair;
-    fctx.beginPath();
-    fctx.ellipse(cx, 22, 30, 20, 0, Math.PI, Math.PI * 2);
-    fctx.fill();
-    // side hair
-    fctx.fillRect(cx - 30, 18, 6, 20);
-    fctx.fillRect(cx + 24, 18, 6, 20);
-
-    // eyebrows (angry/intense)
-    fctx.strokeStyle = hair;
-    fctx.lineWidth = 3;
-    fctx.beginPath();
-    if (i % 2 === 0) {
-      // angled angry brows
-      fctx.moveTo(cx - 18, 34); fctx.lineTo(cx - 8, 32);
-      fctx.moveTo(cx + 18, 34); fctx.lineTo(cx + 8, 32);
-    } else {
-      // flat intense brows
-      fctx.moveTo(cx - 18, 32); fctx.lineTo(cx - 7, 33);
-      fctx.moveTo(cx + 18, 32); fctx.lineTo(cx + 7, 33);
-    }
-    fctx.stroke();
-
-    // eyes
-    fctx.fillStyle = "#FFFFFF";
-    fctx.beginPath();
-    fctx.ellipse(cx - 12, 40, 6, 4, 0, 0, Math.PI * 2);
-    fctx.ellipse(cx + 12, 40, 6, 4, 0, 0, Math.PI * 2);
-    fctx.fill();
-    fctx.fillStyle = "#1A1A1A";
-    fctx.beginPath();
-    fctx.arc(cx - 12, 40, 2.5, 0, Math.PI * 2);
-    fctx.arc(cx + 12, 40, 2.5, 0, Math.PI * 2);
-    fctx.fill();
-
-    // nose
-    fctx.strokeStyle = "rgba(0,0,0,0.3)";
-    fctx.lineWidth = 1.5;
-    fctx.beginPath();
-    fctx.moveTo(cx, 42);
-    fctx.lineTo(cx - 3, 50);
-    fctx.lineTo(cx + 3, 50);
-    fctx.stroke();
-
-    // mouth (expression varies)
-    fctx.strokeStyle = "#8B4040";
-    fctx.lineWidth = 2;
-    fctx.beginPath();
-    if (i === 0) {
-      // grimace
-      fctx.moveTo(cx - 10, 58); fctx.lineTo(cx + 10, 58);
-    } else if (i === 1) {
-      // yelling
-      fctx.fillStyle = "#4A1515";
-      fctx.beginPath();
-      fctx.ellipse(cx, 59, 10, 7, 0, 0, Math.PI * 2);
-      fctx.fill();
-      fctx.fillStyle = "#FFFFFF";
-      fctx.fillRect(cx - 7, 54, 14, 3);
-    } else if (i === 2) {
-      // smirk
-      fctx.moveTo(cx - 8, 58); fctx.quadraticCurveTo(cx, 62, cx + 8, 56);
-    } else if (i === 3) {
-      // serious
-      fctx.moveTo(cx - 8, 57); fctx.lineTo(cx + 8, 57);
-      fctx.moveTo(cx - 6, 60); fctx.lineTo(cx + 6, 60);
-    } else {
-      // slight smile
-      fctx.moveTo(cx - 8, 56); fctx.quadraticCurveTo(cx, 63, cx + 8, 56);
-    }
-    fctx.stroke();
-
-    // beard/stubble for some
-    if (i === 0 || i === 1 || i === 3) {
-      fctx.fillStyle = "rgba(30,20,10,0.25)";
-      fctx.beginPath();
-      fctx.moveTo(cx - 20, 50);
-      fctx.quadraticCurveTo(cx - 18, 70, cx, 72);
-      fctx.quadraticCurveTo(cx + 18, 70, cx + 20, 50);
-      fctx.fill();
-    }
-
-    // tattoo hint on neck/shoulder for some
-    if (i === 0 || i === 4) {
-      fctx.strokeStyle = "rgba(40,80,40,0.4)";
-      fctx.lineWidth = 1;
-      fctx.beginPath();
-      fctx.arc(cx - 28, 62, 8, 0, Math.PI * 1.5);
-      fctx.stroke();
-      fctx.beginPath();
-      fctx.arc(cx + 28, 62, 8, 0.5, Math.PI * 2);
-      fctx.stroke();
-    }
-
-    // ear
-    fctx.fillStyle = skin;
-    fctx.beginPath();
-    fctx.ellipse(cx - 28, 42, 5, 8, 0, 0, Math.PI * 2);
-    fctx.ellipse(cx + 28, 42, 5, 8, 0, 0, Math.PI * 2);
-    fctx.fill();
-
-    faceSprites.push(fc);
+(function loadFaceImages() {
+  for (var i = 1; i <= 5; i++) {
+    var img = new Image();
+    img.onload = function() { facesLoaded++; };
+    img.src = "faces/" + i + ".jpg";
+    faceImages.push(img);
   }
 })();
 
@@ -906,14 +780,24 @@ function drawWindows() {
 
     // face peeking from window
     var rnd = faceRandom(row);
-    if (rnd < FACE_CHANCE && faceSprites.length > 0) {
-      var faceIdx = Math.floor(faceRandom(row + 9999) * faceSprites.length) % faceSprites.length;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
-      ctx.clip();
-      ctx.drawImage(faceSprites[faceIdx], wx, screenY + 10, WINDOW_WIDTH, WINDOW_HEIGHT);
-      ctx.restore();
+    if (rnd < FACE_CHANCE && facesLoaded > 0) {
+      var faceIdx = Math.floor(faceRandom(row + 9999) * faceImages.length) % faceImages.length;
+      var fimg = faceImages[faceIdx];
+      if (fimg.complete && fimg.naturalWidth > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+        ctx.clip();
+        // draw face centered horizontally, peeking from bottom of window
+        var aspect = fimg.naturalWidth / fimg.naturalHeight;
+        var drawH = WINDOW_HEIGHT * 1.4;
+        var drawW = drawH * aspect;
+        if (drawW < WINDOW_WIDTH) { drawW = WINDOW_WIDTH; drawH = drawW / aspect; }
+        var drawX = wx + (WINDOW_WIDTH - drawW) / 2;
+        var drawY = screenY + WINDOW_HEIGHT - drawH + drawH * 0.15;
+        ctx.drawImage(fimg, drawX, drawY, drawW, drawH);
+        ctx.restore();
+      }
     }
   }
 }
