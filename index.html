@@ -75,6 +75,8 @@
   </style>
 </head>
 <body>
+  <!-- BGM -->
+  <audio id="bgm" src="どうぶつの檻.mp3" loop preload="auto"></audio>
   <canvas id="gameCanvas"></canvas>
   <div id="gameOverUI">
     <div id="gameOverPanel">
@@ -115,9 +117,9 @@ const CLEANUP_BEHIND = 400;
 const PLAYER_WIDTH = 22;
 const PLAYER_HEIGHT = 14;
 const GAME_OVER_DELAY = 800;
-const WINDOW_INTERVAL = 300;
-const WINDOW_WIDTH = 110;
-const WINDOW_HEIGHT = 85;
+const WINDOW_INTERVAL = 400;
+const WINDOW_WIDTH = 160;
+const WINDOW_HEIGHT = 120;
 const POINTS_PER_THEME = 20;
 
 // === MOVEMENT CONSTANTS ===
@@ -328,7 +330,7 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 // === FACE IMAGES (peeking from windows) ===
-const FACE_CHANCE = 0.05; // ~1 in 20 windows show a face
+const FACE_SCORE_INTERVAL = 21; // show a face every 21 points
 const faceImages = [];
 var facesLoaded = 0;
 
@@ -341,10 +343,35 @@ var facesLoaded = 0;
   }
 })();
 
-// Deterministic pseudo-random based on row index
-function faceRandom(row) {
-  var x = Math.sin(row * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
+// Face display state
+var nextFaceScore = FACE_SCORE_INTERVAL;
+var activeFaceRow = -1;
+var activeFaceIdx = -1;
+var lastFaceIdx = -1;
+
+function triggerFaceDisplay() {
+  // Pick a face that's different from the last one
+  var idx;
+  if (faceImages.length <= 1) {
+    idx = 0;
+  } else {
+    do {
+      idx = Math.floor(Math.random() * faceImages.length);
+    } while (idx === lastFaceIdx);
+  }
+  lastFaceIdx = idx;
+  activeFaceIdx = idx;
+  // Pick a window row just off-screen (below visible area) so it doesn't pop in
+  var screenBottom = camera.y + canvasHeight;
+  var offScreenRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 1;
+  activeFaceRow = offScreenRow;
+}
+
+function resetFaceState() {
+  nextFaceScore = FACE_SCORE_INTERVAL;
+  activeFaceRow = -1;
+  activeFaceIdx = -1;
+  lastFaceIdx = -1;
 }
 
 // === PLAYER ===
@@ -609,6 +636,7 @@ function startGame() {
   resetObstacles();
   particles = [];
   camera.y = player.y - canvasHeight * 0.33;
+  resetFaceState();
   createBrickPattern();
   generateObstacles();
 }
@@ -660,6 +688,12 @@ function updatePlaying(dt) {
         score++;
       }
     }
+  }
+
+  // Trigger face display at every FACE_SCORE_INTERVAL points
+  if (score >= nextFaceScore && facesLoaded > 0) {
+    triggerFaceDisplay();
+    nextFaceScore += FACE_SCORE_INTERVAL;
   }
 
   var newThemeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
@@ -778,23 +812,21 @@ function drawWindows() {
     ctx.fillStyle = "rgba(255,255,255,0.25)";
     ctx.fillRect(wx + 3, screenY + 3, WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.3);
 
-    // face peeking from window
-    var rnd = faceRandom(row);
-    if (rnd < FACE_CHANCE && facesLoaded > 0) {
-      var faceIdx = Math.floor(faceRandom(row + 9999) * faceImages.length) % faceImages.length;
-      var fimg = faceImages[faceIdx];
+    // face peeking from window (one at a time, every 21 points)
+    if (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length) {
+      var fimg = faceImages[activeFaceIdx];
       if (fimg.complete && fimg.naturalWidth > 0) {
         ctx.save();
         ctx.beginPath();
         ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
         ctx.clip();
-        // draw face centered horizontally, peeking from bottom of window
+        // draw face centered, covering window
         var aspect = fimg.naturalWidth / fimg.naturalHeight;
-        var drawH = WINDOW_HEIGHT * 1.4;
+        var drawH = WINDOW_HEIGHT;
         var drawW = drawH * aspect;
         if (drawW < WINDOW_WIDTH) { drawW = WINDOW_WIDTH; drawH = drawW / aspect; }
         var drawX = wx + (WINDOW_WIDTH - drawW) / 2;
-        var drawY = screenY + WINDOW_HEIGHT - drawH + drawH * 0.15;
+        var drawY = screenY + (WINDOW_HEIGHT - drawH) / 2;
         ctx.drawImage(fimg, drawX, drawY, drawW, drawH);
         ctx.restore();
       }
@@ -1156,6 +1188,21 @@ document.getElementById("gameOverUI").addEventListener("mousedown", function(e) 
       gameState = "TITLE";
     }
   }
+});
+
+// === BGM ===
+var bgm = document.getElementById("bgm");
+bgm.volume = 0.4;
+var bgmStarted = false;
+function tryStartBGM() {
+  if (bgmStarted) return;
+  bgm.play().then(function() { bgmStarted = true; }).catch(function() {});
+}
+// Try autoplay immediately
+tryStartBGM();
+// Fallback: start on first user interaction
+["touchstart", "mousedown", "keydown"].forEach(function(evt) {
+  document.addEventListener(evt, tryStartBGM, { once: false });
 });
 
 // === INIT ===
