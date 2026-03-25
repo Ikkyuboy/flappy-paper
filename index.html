@@ -75,8 +75,6 @@
   </style>
 </head>
 <body>
-  <!-- BGM -->
-  <audio id="bgm" src="どうぶつの檻.mp3" loop preload="auto"></audio>
   <canvas id="gameCanvas"></canvas>
   <div id="gameOverUI">
     <div id="gameOverPanel">
@@ -1205,21 +1203,6 @@ document.getElementById("gameOverUI").addEventListener("mousedown", function(e) 
       gameState = "TITLE";
     }
   }
-});
-
-// === BGM ===
-var bgm = document.getElementById("bgm");
-bgm.volume = 0.4;
-var bgmStarted = false;
-function tryStartBGM() {
-  if (bgmStarted) return;
-  bgm.play().then(function() { bgmStarted = true; }).catch(function() {});
-}
-// Try autoplay immediately
-tryStartBGM();
-// Fallback: start on first user interaction
-["touchstart", "mousedown", "keydown"].forEach(function(evt) {
-  document.addEventListener(evt, tryStartBGM, { once: false });
 });
 
 // === INIT ===
