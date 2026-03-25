@@ -802,37 +802,32 @@ function drawWindows() {
       wx = towerLeft + towerWidth * 0.5 - WINDOW_WIDTH / 2;
     }
 
-    ctx.fillStyle = theme.mortar;
-    ctx.fillRect(wx - 4, screenY - 4, WINDOW_WIDTH + 8, WINDOW_HEIGHT + 8);
+    // Determine window size: adapt to face image aspect ratio if this row has a face
+    var winW = WINDOW_WIDTH;
+    var winH = WINDOW_HEIGHT;
+    var hasFace = (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length);
+    var fimg = hasFace ? faceImages[activeFaceIdx] : null;
+    if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
+      var imgAspect = fimg.naturalWidth / fimg.naturalHeight;
+      winH = Math.round(winW / imgAspect);
+    }
 
-    var wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
+    ctx.fillStyle = theme.mortar;
+    ctx.fillRect(wx - 4, screenY - 4, winW + 8, winH + 8);
+
+    var wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + winH);
     wgrd.addColorStop(0, theme.window);
     wgrd.addColorStop(0.3, lightenColor(theme.window, 40));
     wgrd.addColorStop(1, theme.window);
     ctx.fillStyle = wgrd;
-    ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+    ctx.fillRect(wx, screenY, winW, winH);
 
     ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.fillRect(wx + 3, screenY + 3, WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.3);
+    ctx.fillRect(wx + 3, screenY + 3, winW * 0.4, winH * 0.3);
 
     // face peeking from window (one at a time, every 21 points)
-    if (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length) {
-      var fimg = faceImages[activeFaceIdx];
-      if (fimg.complete && fimg.naturalWidth > 0) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
-        ctx.clip();
-        // draw face centered, covering window
-        var aspect = fimg.naturalWidth / fimg.naturalHeight;
-        var drawH = WINDOW_HEIGHT;
-        var drawW = drawH * aspect;
-        if (drawW < WINDOW_WIDTH) { drawW = WINDOW_WIDTH; drawH = drawW / aspect; }
-        var drawX = wx + (WINDOW_WIDTH - drawW) / 2;
-        var drawY = screenY + (WINDOW_HEIGHT - drawH) / 2;
-        ctx.drawImage(fimg, drawX, drawY, drawW, drawH);
-        ctx.restore();
-      }
+    if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
+      ctx.drawImage(fimg, wx, screenY, winW, winH);
     }
   }
 }

@@ -535,40 +535,36 @@ function drawWindows() {
     }
 
     for (const wx of windowPositions) {
+      // Determine window size: adapt to face image aspect ratio
+      let winW = WINDOW_WIDTH;
+      let winH = WINDOW_HEIGHT;
+      const hasFace = (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length);
+      const fimg = hasFace ? faceImages[activeFaceIdx] : null;
+      if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
+        const imgAspect = fimg.naturalWidth / fimg.naturalHeight;
+        winH = Math.round(winW / imgAspect);
+      }
+
       // Window frame (dark)
       ctx.fillStyle = theme.mortar;
-      ctx.fillRect(wx - 2, screenY - 2, WINDOW_WIDTH + 4, WINDOW_HEIGHT + 4);
+      ctx.fillRect(wx - 2, screenY - 2, winW + 4, winH + 4);
 
       // Window glass
-      const wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + WINDOW_HEIGHT);
+      const wgrd = ctx.createLinearGradient(wx, screenY, wx, screenY + winH);
       wgrd.addColorStop(0, theme.window);
       wgrd.addColorStop(0.3, lightenColor(theme.window, 40));
       wgrd.addColorStop(1, theme.window);
       ctx.fillStyle = wgrd;
-      ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+      ctx.fillRect(wx, screenY, winW, winH);
 
       // Face peeking from window (one at a time, every 21 points)
-      if (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length) {
-        const img = faceImages[activeFaceIdx];
-        if (img.complete && img.naturalWidth > 0) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
-          ctx.clip();
-          const imgAspect = img.naturalWidth / img.naturalHeight;
-          let drawH = WINDOW_HEIGHT;
-          let drawW = drawH * imgAspect;
-          if (drawW < WINDOW_WIDTH) { drawW = WINDOW_WIDTH; drawH = drawW / imgAspect; }
-          const drawX = wx + (WINDOW_WIDTH - drawW) / 2;
-          const drawY = screenY + (WINDOW_HEIGHT - drawH) / 2;
-          ctx.drawImage(img, drawX, drawY, drawW, drawH);
-          ctx.restore();
-        }
+      if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
+        ctx.drawImage(fimg, wx, screenY, winW, winH);
       }
 
       // Window shine
       ctx.fillStyle = "rgba(255,255,255,0.25)";
-      ctx.fillRect(wx + 3, screenY + 3, WINDOW_WIDTH * 0.4, WINDOW_HEIGHT * 0.3);
+      ctx.fillRect(wx + 3, screenY + 3, winW * 0.4, winH * 0.3);
     }
   }
 }
