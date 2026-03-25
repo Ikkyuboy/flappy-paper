@@ -42,47 +42,53 @@ const bgm = new Audio("どうぶつの檻.mp3");
 bgm.loop = true;
 bgm.volume = 0.4;
 
-const FACE_COUNT = 5;
-const FACE_SCORE_INTERVAL = 21;
+const FACE_IMAGE_COUNT = 16;
 const faceImages = [];
-let facesLoaded = false;
+let facesLoaded = 0;
 
 (function loadFaces() {
-  let loaded = 0;
-  for (let i = 1; i <= FACE_COUNT; i++) {
+  for (let i = 1; i <= FACE_IMAGE_COUNT; i++) {
     const img = new Image();
     img.src = `faces/${i}.jpg`;
-    img.onload = () => { loaded++; if (loaded === FACE_COUNT) facesLoaded = true; };
+    img.onload = () => { facesLoaded++; };
     faceImages.push(img);
   }
 })();
 
-// Face display state
-let nextFaceScore = FACE_SCORE_INTERVAL;
-let activeFaceRow = -1;
-let activeFaceIdx = -1;
+// Face display state - multiple faces via object map
+let faceWindows = {};
+let nextFaceRow = 5;
 let lastFaceIdx = -1;
 
-function triggerFaceDisplay() {
+function pickRandomFace() {
   let idx;
-  if (FACE_COUNT <= 1) {
+  if (faceImages.length <= 1) {
     idx = 0;
   } else {
     do {
-      idx = Math.floor(Math.random() * FACE_COUNT);
+      idx = Math.floor(Math.random() * faceImages.length);
     } while (idx === lastFaceIdx);
   }
   lastFaceIdx = idx;
-  activeFaceIdx = idx;
-  // Place face just off-screen (below visible area) so it doesn't pop in
+  return idx;
+}
+
+function scheduleFaceWindows() {
   const screenBottom = camera.y + canvasHeight;
-  activeFaceRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 1;
+  const bottomRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 2;
+  while (nextFaceRow <= bottomRow) {
+    faceWindows[nextFaceRow] = pickRandomFace();
+    nextFaceRow += 3 + Math.floor(Math.random() * 6);
+  }
+  const topRow = Math.floor(camera.y / WINDOW_INTERVAL) - 1;
+  for (const key in faceWindows) {
+    if (parseInt(key) < topRow) delete faceWindows[key];
+  }
 }
 
 function resetFaceState() {
-  nextFaceScore = FACE_SCORE_INTERVAL;
-  activeFaceRow = -1;
-  activeFaceIdx = -1;
+  faceWindows = {};
+  nextFaceRow = 3 + Math.floor(Math.random() * 6);
   lastFaceIdx = -1;
 }
 
@@ -420,10 +426,9 @@ function updatePlaying(dt) {
     }
   }
 
-  // Trigger face display at every FACE_SCORE_INTERVAL points
-  if (score >= nextFaceScore && facesLoaded) {
-    triggerFaceDisplay();
-    nextFaceScore += FACE_SCORE_INTERVAL;
+  // Schedule face windows ahead of camera
+  if (facesLoaded > 0) {
+    scheduleFaceWindows();
   }
 
   // Regenerate brick pattern if theme changed
@@ -538,8 +543,9 @@ function drawWindows() {
       // Determine window size: adapt to face image aspect ratio
       let winW = WINDOW_WIDTH;
       let winH = WINDOW_HEIGHT;
-      const hasFace = (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length);
-      const fimg = hasFace ? faceImages[activeFaceIdx] : null;
+      const faceIdx = faceWindows[row];
+      const hasFace = (faceIdx !== undefined && faceIdx >= 0 && faceIdx < faceImages.length);
+      const fimg = hasFace ? faceImages[faceIdx] : null;
       if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
         const imgAspect = fimg.naturalWidth / fimg.naturalHeight;
         winH = Math.round(winW / imgAspect);
@@ -557,7 +563,7 @@ function drawWindows() {
       ctx.fillStyle = wgrd;
       ctx.fillRect(wx, screenY, winW, winH);
 
-      // Face peeking from window (one at a time, every 21 points)
+      // Face peeking from window
       if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
         ctx.drawImage(fimg, wx, screenY, winW, winH);
       }
@@ -857,6 +863,22 @@ tryStartBGM();
 ["touchstart", "mousedown", "keydown"].forEach((evt) => {
   document.addEventListener(evt, tryStartBGM, { once: false });
 });
+
+// === MUTE BUTTON ===
+const muteBtn = document.getElementById("muteBtn");
+let isMuted = false;
+if (muteBtn) {
+  muteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    isMuted = !isMuted;
+    bgm.muted = isMuted;
+    muteBtn.textContent = isMuted ? "🔇" : "🔊";
+  });
+  muteBtn.addEventListener("touchstart", (e) => {
+    e.stopPropagation();
+  });
+}
 
 // === INIT ===
 requestAnimationFrame((ts) => {

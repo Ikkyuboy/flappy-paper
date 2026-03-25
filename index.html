@@ -75,6 +75,7 @@
   </style>
 </head>
 <body>
+  <button id="muteBtn" style="position:fixed;top:10px;left:10px;z-index:20;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:18px;cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;">🔊</button>
   <canvas id="gameCanvas"></canvas>
   <div id="gameOverUI">
     <div id="gameOverPanel">
@@ -333,12 +334,12 @@ bgm.loop = true;
 bgm.volume = 0.4;
 
 // === FACE IMAGES (peeking from windows) ===
-const FACE_SCORE_INTERVAL = 21; // show a face every 21 points
+const FACE_IMAGE_COUNT = 16;
 const faceImages = [];
 var facesLoaded = 0;
 
 (function loadFaceImages() {
-  for (var i = 1; i <= 5; i++) {
+  for (var i = 1; i <= FACE_IMAGE_COUNT; i++) {
     var img = new Image();
     img.onload = function() { facesLoaded++; };
     img.src = "faces/" + i + ".jpg";
@@ -346,14 +347,12 @@ var facesLoaded = 0;
   }
 })();
 
-// Face display state
-var nextFaceScore = FACE_SCORE_INTERVAL;
-var activeFaceRow = -1;
-var activeFaceIdx = -1;
+// Face display state - multiple faces via Map<row, faceIdx>
+var faceWindows = {};
+var nextFaceRow = 5;
 var lastFaceIdx = -1;
 
-function triggerFaceDisplay() {
-  // Pick a face that's different from the last one
+function pickRandomFace() {
   var idx;
   if (faceImages.length <= 1) {
     idx = 0;
@@ -363,17 +362,27 @@ function triggerFaceDisplay() {
     } while (idx === lastFaceIdx);
   }
   lastFaceIdx = idx;
-  activeFaceIdx = idx;
-  // Pick a window row just off-screen (below visible area) so it doesn't pop in
+  return idx;
+}
+
+function scheduleFaceWindows() {
+  // Schedule faces ahead of camera (off-screen below)
   var screenBottom = camera.y + canvasHeight;
-  var offScreenRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 1;
-  activeFaceRow = offScreenRow;
+  var bottomRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 2;
+  while (nextFaceRow <= bottomRow) {
+    faceWindows[nextFaceRow] = pickRandomFace();
+    nextFaceRow += 3 + Math.floor(Math.random() * 6); // 3~8 windows apart
+  }
+  // Cleanup: remove faces that scrolled past top of screen
+  var topRow = Math.floor(camera.y / WINDOW_INTERVAL) - 1;
+  for (var key in faceWindows) {
+    if (parseInt(key) < topRow) delete faceWindows[key];
+  }
 }
 
 function resetFaceState() {
-  nextFaceScore = FACE_SCORE_INTERVAL;
-  activeFaceRow = -1;
-  activeFaceIdx = -1;
+  faceWindows = {};
+  nextFaceRow = 3 + Math.floor(Math.random() * 6);
   lastFaceIdx = -1;
 }
 
@@ -693,10 +702,9 @@ function updatePlaying(dt) {
     }
   }
 
-  // Trigger face display at every FACE_SCORE_INTERVAL points
-  if (score >= nextFaceScore && facesLoaded > 0) {
-    triggerFaceDisplay();
-    nextFaceScore += FACE_SCORE_INTERVAL;
+  // Schedule face windows ahead of camera
+  if (facesLoaded > 0) {
+    scheduleFaceWindows();
   }
 
   var newThemeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
@@ -805,8 +813,9 @@ function drawWindows() {
     // Determine window size: adapt to face image aspect ratio if this row has a face
     var winW = WINDOW_WIDTH;
     var winH = WINDOW_HEIGHT;
-    var hasFace = (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length);
-    var fimg = hasFace ? faceImages[activeFaceIdx] : null;
+    var faceIdx = faceWindows[row];
+    var hasFace = (faceIdx !== undefined && faceIdx >= 0 && faceIdx < faceImages.length);
+    var fimg = hasFace ? faceImages[faceIdx] : null;
     if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
       var imgAspect = fimg.naturalWidth / fimg.naturalHeight;
       winH = Math.round(winW / imgAspect);
@@ -825,7 +834,7 @@ function drawWindows() {
     ctx.fillStyle = "rgba(255,255,255,0.25)";
     ctx.fillRect(wx + 3, screenY + 3, winW * 0.4, winH * 0.3);
 
-    // face peeking from window (one at a time, every 21 points)
+    // face peeking from window
     if (hasFace && fimg && fimg.complete && fimg.naturalWidth > 0) {
       ctx.drawImage(fimg, wx, screenY, winW, winH);
     }
@@ -1197,6 +1206,20 @@ function tryStartBGM() {
 tryStartBGM();
 ["touchstart", "mousedown", "keydown"].forEach(function(evt) {
   document.addEventListener(evt, tryStartBGM, { once: false });
+});
+
+// === MUTE BUTTON ===
+var muteBtn = document.getElementById("muteBtn");
+var isMuted = false;
+muteBtn.addEventListener("click", function(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  isMuted = !isMuted;
+  bgm.muted = isMuted;
+  muteBtn.textContent = isMuted ? "🔇" : "🔊";
+});
+muteBtn.addEventListener("touchstart", function(e) {
+  e.stopPropagation();
 });
 
 // === INIT ===
