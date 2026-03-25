@@ -37,6 +37,21 @@ function getCurrentTheme() {
 }
 
 // === FACE IMAGES ===
+// === BGM ===
+const bgm = new Audio("どうぶつの檻.mp3");
+bgm.loop = true;
+bgm.volume = 0.5;
+
+function startBGM() {
+  bgm.currentTime = 0;
+  bgm.play().catch(function() {});
+}
+
+function stopBGM() {
+  bgm.pause();
+  bgm.currentTime = 0;
+}
+
 const FACE_COUNT = 5;
 const FACE_SCORE_INTERVAL = 21;
 const faceImages = [];
@@ -375,6 +390,7 @@ function startGame() {
   resetFaceState();
   createBrickPattern();
   generateObstacles();
+  startBGM();
 }
 
 function updatePlaying(dt) {
@@ -436,6 +452,7 @@ function updatePlaying(dt) {
     gameState = "GAME_OVER";
     gameOverTime = performance.now();
     player.dead = true;
+    stopBGM();
     spawnDeathParticles();
     if (score > highScore) {
       highScore = score;
