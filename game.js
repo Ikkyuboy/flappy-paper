@@ -17,9 +17,9 @@ const CLEANUP_BEHIND = 400;
 const PLAYER_WIDTH = 22;
 const PLAYER_HEIGHT = 14;
 const GAME_OVER_DELAY = 800;
-const WINDOW_INTERVAL = 250; // Y interval between windows
-const WINDOW_WIDTH = 60;
-const WINDOW_HEIGHT = 50;
+const WINDOW_INTERVAL = 400;
+const WINDOW_WIDTH = 160;
+const WINDOW_HEIGHT = 120;
 const POINTS_PER_THEME = 20;
 
 // === COLOR THEMES ===
@@ -34,6 +34,66 @@ const THEMES = [
 
 function getCurrentTheme() {
   return THEMES[Math.floor(score / POINTS_PER_THEME) % THEMES.length];
+}
+
+// === FACE IMAGES ===
+// === BGM ===
+const bgm = new Audio("どうぶつの檻.mp3");
+bgm.loop = true;
+bgm.volume = 0.5;
+
+function startBGM() {
+  bgm.currentTime = 0;
+  bgm.play().catch(function() {});
+}
+
+function stopBGM() {
+  bgm.pause();
+  bgm.currentTime = 0;
+}
+
+const FACE_COUNT = 5;
+const FACE_SCORE_INTERVAL = 21;
+const faceImages = [];
+let facesLoaded = false;
+
+(function loadFaces() {
+  let loaded = 0;
+  for (let i = 1; i <= FACE_COUNT; i++) {
+    const img = new Image();
+    img.src = `faces/${i}.jpg`;
+    img.onload = () => { loaded++; if (loaded === FACE_COUNT) facesLoaded = true; };
+    faceImages.push(img);
+  }
+})();
+
+// Face display state
+let nextFaceScore = FACE_SCORE_INTERVAL;
+let activeFaceRow = -1;
+let activeFaceIdx = -1;
+let lastFaceIdx = -1;
+
+function triggerFaceDisplay() {
+  let idx;
+  if (FACE_COUNT <= 1) {
+    idx = 0;
+  } else {
+    do {
+      idx = Math.floor(Math.random() * FACE_COUNT);
+    } while (idx === lastFaceIdx);
+  }
+  lastFaceIdx = idx;
+  activeFaceIdx = idx;
+  // Place face just off-screen (below visible area) so it doesn't pop in
+  const screenBottom = camera.y + canvasHeight;
+  activeFaceRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 1;
+}
+
+function resetFaceState() {
+  nextFaceScore = FACE_SCORE_INTERVAL;
+  activeFaceRow = -1;
+  activeFaceIdx = -1;
+  lastFaceIdx = -1;
 }
 
 // === CANVAS SETUP ===
@@ -327,8 +387,10 @@ function startGame() {
   resetObstacles();
   particles = [];
   camera.y = player.y - canvasHeight * 0.33;
+  resetFaceState();
   createBrickPattern();
   generateObstacles();
+  startBGM();
 }
 
 function updatePlaying(dt) {
@@ -369,6 +431,12 @@ function updatePlaying(dt) {
     }
   }
 
+  // Trigger face display at every FACE_SCORE_INTERVAL points
+  if (score >= nextFaceScore && facesLoaded) {
+    triggerFaceDisplay();
+    nextFaceScore += FACE_SCORE_INTERVAL;
+  }
+
   // Regenerate brick pattern if theme changed
   const newThemeIdx = Math.floor(score / POINTS_PER_THEME) % THEMES.length;
   if (newThemeIdx !== brickPatternThemeIndex) {
@@ -384,6 +452,7 @@ function updatePlaying(dt) {
     gameState = "GAME_OVER";
     gameOverTime = performance.now();
     player.dead = true;
+    stopBGM();
     spawnDeathParticles();
     if (score > highScore) {
       highScore = score;
@@ -489,6 +558,25 @@ function drawWindows() {
       wgrd.addColorStop(1, theme.window);
       ctx.fillStyle = wgrd;
       ctx.fillRect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+      // Face peeking from window (one at a time, every 21 points)
+      if (row === activeFaceRow && activeFaceIdx >= 0 && activeFaceIdx < faceImages.length) {
+        const img = faceImages[activeFaceIdx];
+        if (img.complete && img.naturalWidth > 0) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(wx, screenY, WINDOW_WIDTH, WINDOW_HEIGHT);
+          ctx.clip();
+          const imgAspect = img.naturalWidth / img.naturalHeight;
+          let drawH = WINDOW_HEIGHT;
+          let drawW = drawH * imgAspect;
+          if (drawW < WINDOW_WIDTH) { drawW = WINDOW_WIDTH; drawH = drawW / imgAspect; }
+          const drawX = wx + (WINDOW_WIDTH - drawW) / 2;
+          const drawY = screenY + (WINDOW_HEIGHT - drawH) / 2;
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
+          ctx.restore();
+        }
+      }
 
       // Window shine
       ctx.fillStyle = "rgba(255,255,255,0.25)";
