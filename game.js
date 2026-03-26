@@ -37,12 +37,6 @@ function getCurrentTheme() {
 }
 
 // === FACE IMAGES ===
-// === PLAYER SPRITE ===
-const playerSprite = new Image();
-playerSprite.src = "player.png";
-const SPRITE_DRAW_W = 60;
-const SPRITE_DRAW_H = 40;
-
 // === BGM ===
 const bgm = new Audio("どうぶつの檻.mp3");
 bgm.loop = true;
@@ -635,18 +629,25 @@ function drawPlane() {
     ctx.rotate(player.angle);
   }
 
-  if (playerSprite.complete && playerSprite.naturalWidth > 0) {
-    ctx.drawImage(playerSprite, -SPRITE_DRAW_W / 2, -SPRITE_DRAW_H / 2, SPRITE_DRAW_W, SPRITE_DRAW_H);
-  } else {
-    // Fallback: simple paper airplane
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.beginPath();
-    ctx.moveTo(0, 4);
-    ctx.lineTo(10, -8);
-    ctx.lineTo(-10, -8);
-    ctx.closePath();
-    ctx.fill();
-  }
+  // V-shaped / chevron airplane (pointing downward)
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  ctx.beginPath();
+  ctx.moveTo(-10, -8);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(10, -8);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255,255,255,0.3)";
+  ctx.beginPath();
+  ctx.moveTo(-10, -8);
+  ctx.lineTo(0, 4);
+  ctx.lineTo(10, -8);
+  ctx.closePath();
+  ctx.fill();
 
   ctx.restore();
 }
