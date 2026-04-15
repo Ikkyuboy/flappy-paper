@@ -161,7 +161,7 @@ let rankingShownTime = 0;
 // === RANKING ===
 const MAX_RANKINGS = 20;
 let localRankings = JSON.parse(localStorage.getItem("kamiHikouki_localRankings") || "[]");
-let worldRankings = []; // populated by Cloudflare backend later
+let worldRankings = []; // populated by Cloudflare backend
 let currentRankTab = "local";
 let lastRegisteredName = "";
 
@@ -176,16 +176,42 @@ function addLocalRanking(name, s) {
   saveLocalRankings();
 }
 
-// World Ranking stubs - replace with Cloudflare Workers calls
+// === WORLD RANKING (Cloudflare Workers) ===
+const RANKING_API = "https://flappy-paper-ranking.bose-no-ikkyu.workers.dev/ranking";
+
 function fetchWorldRankings(callback) {
-  // TODO: fetch from Cloudflare Workers API
-  callback([]);
+  fetch(RANKING_API)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      callback(Array.isArray(data) ? data : []);
+    })
+    .catch(function(e) {
+      console.error("World ranking fetch failed:", e);
+      callback([]);
+    });
 }
 
 function submitWorldRanking(name, s, callback) {
-  // TODO: POST to Cloudflare Workers API
-  if (callback) callback(false);
+  fetch(RANKING_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name, score: s })
+  })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data && Array.isArray(data.top10)) {
+        worldRankings = data.top10;
+      }
+      if (callback) callback(true, data);
+    })
+    .catch(function(e) {
+      console.error("World ranking submit failed:", e);
+      if (callback) callback(false);
+    });
 }
+
+// 初回読み込み時にワールドランキングを取得
+fetchWorldRankings(function(data) { worldRankings = data; });
 
 function showGameOverUI() {
   var panel = document.getElementById("gameOverUI");
