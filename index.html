@@ -406,10 +406,10 @@ function scheduleFaceWindows() {
   var screenBottom = camera.y + canvasHeight;
   var bottomRow = Math.floor(screenBottom / WINDOW_INTERVAL) + 2;
   while (nextFaceRow <= bottomRow) {
-    // 中央列（row % 3 === 2）は紙ヒコーキの飛行ルートと重なって視認性が落ちるのでスキップ
-    if (nextFaceRow % 3 !== 2) {
-      faceWindows[nextFaceRow] = pickRandomFace();
-    }
+    // 中央列（row % 3 === 2）は紙ヒコーキの飛行ルートと重なるので、1行ずらして左右の窓に配置
+    if (nextFaceRow % 3 === 2) nextFaceRow++;
+    if (nextFaceRow > bottomRow) break;
+    faceWindows[nextFaceRow] = pickRandomFace();
     nextFaceRow += 3 + Math.floor(Math.random() * 6); // 3~8 windows apart
   }
   // Cleanup: remove faces that scrolled past top of screen
