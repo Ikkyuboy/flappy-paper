@@ -365,18 +365,23 @@ bgm.volume = 0.4;
 bgm.muted = true;
 
 // === FACE IMAGES (peeking from windows) ===
-const FACE_IMAGE_COUNT = 16;
+// 連番プローブ: faces/1.jpg から順に読み込み、404 が返ったら打ち切り
 const faceImages = [];
 var facesLoaded = 0;
 
-(function loadFaceImages() {
-  for (var i = 1; i <= FACE_IMAGE_COUNT; i++) {
-    var img = new Image();
-    img.onload = function() { facesLoaded++; };
-    img.src = "faces/" + i + ".jpg";
+function probeFaceImage(i) {
+  var img = new Image();
+  img.onload = function() {
     faceImages.push(img);
-  }
-})();
+    facesLoaded++;
+    probeFaceImage(i + 1);
+  };
+  img.onerror = function() {
+    // 存在しない連番に到達 → 打ち切り
+  };
+  img.src = "faces/" + i + ".jpg";
+}
+probeFaceImage(1);
 
 // Face display state - multiple faces via Map<row, faceIdx>
 var faceWindows = {};
