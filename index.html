@@ -75,7 +75,7 @@
   </style>
 </head>
 <body>
-  <button id="muteBtn" style="position:fixed;top:10px;left:10px;z-index:20;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:18px;cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;">🔊</button>
+  <button id="muteBtn" style="position:fixed;top:8px;left:8px;z-index:20;background:rgba(0,0,0,0.5);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:18px;cursor:pointer;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;">🔇</button>
   <canvas id="gameCanvas"></canvas>
   <div id="gameOverUI">
     <div id="gameOverPanel">
@@ -157,6 +157,7 @@ let gameOverTime = 0;
 let titleAnimTime = 0;
 let gameOverPhase = ""; // "input", "ranking", ""
 let rankingShownTime = 0;
+let titleShownTime = 0;
 
 // === RANKING ===
 const MAX_RANKINGS = 20;
@@ -220,10 +221,11 @@ function showGameOverUI() {
   panel.classList.add("active");
   goPanel.style.display = "block";
   rankPanel.classList.remove("active");
-  document.getElementById("goScore").textContent = padScore(score, 3);
+  var intScore = Math.floor(score);
+  document.getElementById("goScore").textContent = padScore(intScore, 3);
   document.getElementById("goHighScore").textContent = "HIGH SCORE " + padScore(highScore, 3);
   var nr = document.getElementById("goNewRecord");
-  nr.style.display = (score >= highScore && score > 0) ? "block" : "none";
+  nr.style.display = (intScore >= highScore && intScore > 0) ? "block" : "none";
   var inp = document.getElementById("nameInput");
   inp.value = lastRegisteredName;
   inp.blur();
@@ -260,9 +262,10 @@ function renderRankList(highlightName) {
     return;
   }
   var html = "";
+  var myScore = Math.floor(score);
   for (var i = 0; i < data.length; i++) {
     var r = data[i];
-    var isSelf = highlightName && r.name === highlightName && r.score === score;
+    var isSelf = highlightName && r.name === highlightName && r.score === myScore;
     html += '<div class="rank-row' + (isSelf ? ' self' : '') + '">' +
       '<span class="rank-pos">' + (i + 1) + '.</span>' +
       '<span class="rank-name">' + escapeHtml(r.name) + '</span>' +
@@ -359,6 +362,7 @@ resizeCanvas();
 var bgm = new Audio("どうぶつの檻.mp3");
 bgm.loop = true;
 bgm.volume = 0.4;
+bgm.muted = true;
 
 // === FACE IMAGES (peeking from windows) ===
 const FACE_IMAGE_COUNT = 16;
@@ -420,8 +424,43 @@ let player = {
   speed: BASE_SPEED_100,
   dead: false,
   deathScale: 1,
-  deathAngle: 0
+  deathAngle: 0,
+  colorType: "white",
+  scoreMultiplier: 1.0
 };
+
+// Plane color palette (light = right wing, dark = left wing)
+const PLANE_COLORS = {
+  white:  { light: "rgba(255,255,255,0.9)",  dark: "rgba(220,220,230,0.85)" },
+  red:    { light: "rgba(255,110,110,0.9)",  dark: "rgba(200,60,60,0.85)"   },
+  blue:   { light: "rgba(130,185,255,0.9)",  dark: "rgba(70,130,220,0.85)"  },
+  purple: { light: "rgba(205,140,255,0.9)",  dark: "rgba(160,90,220,0.85)"  },
+  green:  { light: "rgba(140,230,150,0.9)",  dark: "rgba(90,190,100,0.85)"  },
+  yellow: { light: "rgba(255,230,100,0.9)",  dark: "rgba(220,180,50,0.85)"  }
+};
+
+// 色抽選テーブル (合計100%)
+const PLANE_COLOR_SPEC = [
+  { key: "white",   multiplier: 1.0, weight: 50 },
+  { key: "red",     multiplier: 1.1, weight: 10 },
+  { key: "blue",    multiplier: 1.2, weight: 10 },
+  { key: "purple",  multiplier: 1.0, weight: 10 },
+  { key: "rainbow", multiplier: 1.3, weight: 10 },
+  { key: "green",   multiplier: 1.0, weight: 5  },
+  { key: "yellow",  multiplier: 1.5, weight: 5  }
+];
+
+function rollPlaneColor() {
+  var total = 0;
+  for (var i = 0; i < PLANE_COLOR_SPEC.length; i++) total += PLANE_COLOR_SPEC[i].weight;
+  var r = Math.random() * total;
+  var acc = 0;
+  for (var j = 0; j < PLANE_COLOR_SPEC.length; j++) {
+    acc += PLANE_COLOR_SPEC[j].weight;
+    if (r < acc) return PLANE_COLOR_SPEC[j];
+  }
+  return PLANE_COLOR_SPEC[0];
+}
 
 function resetPlayer() {
   player.x = towerWidth / 2;
@@ -431,6 +470,9 @@ function resetPlayer() {
   player.dead = false;
   player.deathScale = 1;
   player.deathAngle = 0;
+  var rolled = rollPlaneColor();
+  player.colorType = rolled.key;
+  player.scoreMultiplier = rolled.multiplier;
 }
 
 // === CAMERA ===
@@ -724,7 +766,7 @@ function updatePlaying(dt) {
       o.passed = true;
       if (!scoredGroups[o.groupId]) {
         scoredGroups[o.groupId] = true;
-        score++;
+        score += player.scoreMultiplier;
       }
     }
   }
@@ -745,8 +787,9 @@ function updatePlaying(dt) {
     gameOverTime = performance.now();
     player.dead = true;
     spawnDeathParticles();
-    if (score > highScore) {
-      highScore = score;
+    var intScore = Math.floor(score);
+    if (intScore > highScore) {
+      highScore = intScore;
       localStorage.setItem("kamiHikouki_highScore", highScore);
     }
   }
@@ -768,6 +811,7 @@ function updateGameOver(dt) {
     if (gameOverPhase === "ranking") {
       hideGameOverUI();
       gameState = "TITLE";
+      titleShownTime = Date.now();
     }
   }
   input.anyPress = false;
@@ -777,6 +821,10 @@ function updateTitle(dt) {
   tapQueue = [];
   titleAnimTime += dt * 0.02;
   if (input.anyPress) {
+    if (titleShownTime && Date.now() - titleShownTime < 100) {
+      input.anyPress = false;
+      return;
+    }
     startGame();
     input.anyPress = false;
   }
@@ -923,8 +971,20 @@ function drawPlane() {
     ctx.rotate(-player.angleDeg * Math.PI / 180);
   }
 
+  // Pick colors based on player's rolled color type
+  var lightColor, darkColor;
+  if (player.colorType === "rainbow") {
+    var hue = (performance.now() / 8) % 360;
+    lightColor = "hsla(" + hue + ",95%,70%,0.9)";
+    darkColor  = "hsla(" + ((hue + 50) % 360) + ",95%,50%,0.85)";
+  } else {
+    var pal = PLANE_COLORS[player.colorType] || PLANE_COLORS.white;
+    lightColor = pal.light;
+    darkColor  = pal.dark;
+  }
+
   // Paper airplane shape - nose pointing down
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fillStyle = lightColor;
   ctx.beginPath();
   ctx.moveTo(0, 12);
   ctx.lineTo(10, -6);
@@ -932,7 +992,7 @@ function drawPlane() {
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = "rgba(220,220,230,0.85)";
+  ctx.fillStyle = darkColor;
   ctx.beginPath();
   ctx.moveTo(0, 12);
   ctx.lineTo(-10, -6);
@@ -989,13 +1049,14 @@ function drawParticles() {
 }
 
 function drawHUD() {
+  var displayScore = Math.floor(score);
   ctx.save();
   ctx.font = "bold 20px 'Courier New', monospace";
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(0,0,0,0.5)";
-  ctx.fillText(padScore(score, 3), canvasWidth / 2 + 1, 29);
+  ctx.fillText(padScore(displayScore, 3), canvasWidth / 2 + 1, 29);
   ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(padScore(score, 3), canvasWidth / 2, 28);
+  ctx.fillText(padScore(displayScore, 3), canvasWidth / 2, 28);
 
   ctx.font = "bold 12px 'Courier New', monospace";
   ctx.textAlign = "right";
@@ -1155,8 +1216,9 @@ function doRegister() {
   var name = document.getElementById("nameInput").value.trim();
   if (!name) name = "名無し";
   lastRegisteredName = name;
-  addLocalRanking(name, score);
-  submitWorldRanking(name, score, function() {
+  var intScore = Math.floor(score);
+  addLocalRanking(name, intScore);
+  submitWorldRanking(name, intScore, function() {
     fetchWorldRankings(function(data) { worldRankings = data; });
   });
   showRankingUI(name);
@@ -1197,6 +1259,7 @@ document.getElementById("rankRestartBtn").addEventListener("click", function(e) 
   if (Date.now() - rankingShownTime < 100) return;
   hideGameOverUI();
   gameState = "TITLE";
+  titleShownTime = Date.now();
 });
 
 // Tapping outside the panel: input phase → skip to ranking (no submit), ranking phase → restart
@@ -1209,6 +1272,7 @@ document.getElementById("gameOverUI").addEventListener("touchstart", function(e)
       if (Date.now() - rankingShownTime < 100) return;
       hideGameOverUI();
       gameState = "TITLE";
+      titleShownTime = Date.now();
     }
   }
 }, { passive: false });
@@ -1221,6 +1285,7 @@ document.getElementById("gameOverUI").addEventListener("mousedown", function(e) 
       if (Date.now() - rankingShownTime < 100) return;
       hideGameOverUI();
       gameState = "TITLE";
+      titleShownTime = Date.now();
     }
   }
 });
@@ -1238,7 +1303,15 @@ tryStartBGM();
 
 // === MUTE BUTTON ===
 var muteBtn = document.getElementById("muteBtn");
-var isMuted = false;
+var isMuted = true;
+muteBtn.textContent = "🔇";
+function positionMuteBtn() {
+  var rect = canvas.getBoundingClientRect();
+  muteBtn.style.left = Math.max(4, rect.left + 8) + "px";
+  muteBtn.style.top = (rect.top + 8) + "px";
+}
+positionMuteBtn();
+window.addEventListener("resize", positionMuteBtn);
 muteBtn.addEventListener("click", function(e) {
   e.stopPropagation();
   e.preventDefault();
